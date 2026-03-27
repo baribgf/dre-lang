@@ -1,0 +1,97 @@
+use io
+
+---
+This is a multi-line comment
+---
+
+-- This is a single line comment
+
+let DeathReason: enum
+begin
+    Normal
+    Murder
+    Unknown
+end
+
+let Mortal: prot
+begin
+    die = func (reason: DeathReason) -> None
+end
+
+let Person: struct is Mortal, ...
+begin
+public:
+    -- Here, begins the public section
+    name: String <- “”
+    age: Int <- 0
+
+    @new = func (name: String, age: Int) -> None
+    begin
+        self.name <- name
+        self.age <- age
+    end
+
+    GetName = func () -> String
+    begin
+        return self.name
+    end
+
+    die = func (reason: DeathReason) -> None
+    begin
+        io::PrintLn(“Mr. ”, self.GetName(), “ passes away..”)
+        io::PrintLn(“Because: ”, reason.ToString())
+    end
+private:
+    -- Here, begins the private section
+end
+
+---
+This is the entry-point of the program, the `main` function.
+---
+let main = func (argc: Int, argv: [String]) -> Int
+begin
+    io::PrintLn(“Hello, world!”)
+
+    let x: Int
+    let person: Person
+
+    let point: [2 Int]
+    point[0] <- 1
+    point[1] <- 2
+
+    x <- 0
+    until x = 5 do
+        x <- x + 1
+    end
+
+    for i in 1..5 do
+        dec x
+    end
+
+    if x = 0 then
+        -- loop ranges are bijective
+    else if x <> 0 then
+        -- they'ren't
+    else
+        -- oops!!
+        io::Oops(“Something went wrong!”)
+    end
+
+    person <- Person(“Abdelbari”, 21)
+    io::PrintLn(“Hello, ”, person.GetName(), “!”)
+
+    let finished: Bool <- True
+
+    while not finished do
+        doShout()
+    end
+
+    person.die(DeathReason::Unknown)
+
+    return 0
+end
+
+let doShout = func () -> None
+begin
+    io::PrintLn(“Okay, I'm not gonna do that!”)
+end

@@ -1,0 +1,9 @@
+[package]
+name = "imac"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.60", features = ["derive"] }
+logos = { version = "0.16.1", features = ["forbid_unsafe"] }
+memmap2 = "0.9.10"
