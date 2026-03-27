@@ -1,0 +1,64 @@
+# `Ima` Language Tokens
+
+> N.B All tokens are case-sensitive.
+
+> N.B No token can have length > `4KiB`.
+
+| Token             | Description
+|-------------------|-----------------------------------------------------|
+| Identifier        | Any string beginning with a letter followed by any number of letters and digits, with at most one underscore separating each, or a single underscore (placeholder).
+| Newline | `\n` character.
+| Multi-line comment  | A string starting and ending with `---`.
+| Single-line comment | A string starting with `--` and ending with newline.
+| `use` keyword       | Used for bringing modules into scope.
+| `let` keyword       | Used to declare variables, structs, enums, ...etc
+| `struct` keyword | Used to define structures.
+| `enum` keyword | Used to define enums.
+| `prot` keyword | Used to define protocols (interfaces).
+| `func` keyword | Used to define functions.
+| `begin` keyword | Used to mark the beginning of a block.
+| `end` keyword | Used to mark the ending of a block.
+| `is` keyword | Used to impose protocols.
+| `public` keyword | Used to mark public struct regions.
+| `private` keyword | Used to mark private struct regions.
+| `self` keyword | Used to refer to struct instances.
+| `return` keyword | Used to return values from functions.
+| `until` keyword | Used to write `until-loop` statements.
+| `while` keyword | Used to write `while-loop` statements.
+| `for` keyword | Used to write `for-loop` statements.
+| `do` keyword | Used to mark the beginning of a `do-end` block
+| `in` keyword | Used to delimit between `for-loop` iteration variable binding and iterator expression.
+| `if` keyword | Used to write conditional branching statements.
+| `then` keyword | Used to mark the beginning of a conditional branching block.
+| `else` keyword | Used to write default conditional branching statements.
+| `True` keyword | Used to denote a `true` value litteral.
+| `False` keyword | Used to denote a `false` value litteral.
+| `not` keyword | Logic negation unary operator.
+| `and` keyword | Logic conjunction operator.
+| `or` keyword | Logic disjunction operator.
+| `inc` keyword | Number increment operator.
+| `dec` keyword | Number decrement operator.
+| Integer litteral | Any string of digits with optional `-` leading sign.
+| Floating-point litteral | Any string of digits containing `.`, with optional `-` leading sign.
+| `:`  | Colon, for type identification.
+| `::` | Double colon, for namespaced access.
+| `=` | Used to assign constant values (e.g function identifiers), and to test equality.
+| `<>` | Diamond operator, used to test non-equality.
+| `<` | Less than operator.
+| `<=` | Less than or equal operator.
+| `>` | Greater than operator.
+| `>=` | Greater than or equal operator.
+| `(` | Opening parenthesis.
+| `)` | Closing parenthesis.
+| `[` | Opening bracket.
+| `]` | Closing bracket.
+| `“` | Opening double quotes.
+| `”` | Closing double quotes.
+| `'` | Single quote.
+| `, ` | Spaced comma, for separating elements.
+| `->` | Right arrow, for function return types.
+| `<-` | Left arrow, for assigning values to variables.
+| `@` | At sign, for marking special struct members.
+| `.` | Period, for struct member access.
+| `+, -, *, /, %` | Arithmetic operators.
+| `<<, >>, &, \|, ^, !` | Bitwise operators.
