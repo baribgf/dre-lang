@@ -68,6 +68,8 @@ pub enum TokenType {
     Inc,
     #[token(r"dec")]
     Dec,
+    #[token(r"const")]
+    Const,
     #[token(r":")]
     Colon,
     #[token(r"::")]

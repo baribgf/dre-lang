@@ -38,11 +38,12 @@
 | `or` keyword | Logic disjunction operator.
 | `inc` keyword | Number increment operator.
 | `dec` keyword | Number decrement operator.
+| `const` keyword | Used to declare constants.
 | Integer litteral | Any string of digits with optional `-` leading sign.
 | Floating-point litteral | Any string of digits containing `.`, with optional `-` leading sign.
 | `:`  | Colon, for type identification.
 | `::` | Double colon, for namespaced access.
-| `=` | Used to assign constant values (e.g function identifiers), and to test equality.
+| `=` | Used to assign constants, and to test equality.
 | `<>` | Diamond operator, used to test non-equality.
 | `<` | Less than operator.
 | `<=` | Less than or equal operator.
