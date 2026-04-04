@@ -1,6 +1,6 @@
-use std::fmt::Display;
-
 use logos::Logos;
+
+use crate::{report::fatal, utils::bytes_to_string};
 
 #[derive(Logos, PartialEq, Clone, Debug)]
 #[logos(skip r" +")]
@@ -8,8 +8,8 @@ use logos::Logos;
 #[logos(subpattern alpha = r"[a-zA-Z]")]
 #[logos(subpattern digit = r"[0-9]")]
 #[logos(subpattern alphanum = r"(?&alpha)|(?&digit)")]
-#[logos(subpattern intltrl = r"-?(?&digit)+")]
-pub enum TokenType {
+#[logos(subpattern intltrl = r"-?(?&digit)+")] // integer literal (sorry, for obfuscation)
+pub enum Token {
     #[token("\n")]
     Newline,
     #[token(r"use")]
@@ -30,10 +30,8 @@ pub enum TokenType {
     End,
     #[token(r"is")]
     Is,
-    #[token(r"public")]
-    Public,
-    #[token(r"private")]
-    Private,
+    #[token(r"pub")]
+    Pub,
     #[token(r"self")]
     Self_,
     #[token(r"return")]
@@ -55,9 +53,9 @@ pub enum TokenType {
     #[token(r"else")]
     Else,
     #[token(r"true")]
-    True,
+    TrueLtrl,
     #[token(r"false")]
-    False,
+    FalseLtrl,
     #[token(r"not")]
     Not,
     #[token(r"and")]
@@ -70,8 +68,8 @@ pub enum TokenType {
     Dec,
     #[token(r"const")]
     Const,
-    #[token(r":")]
-    Colon,
+    #[token(r": ")]
+    SpacedColon,
     #[token(r"::")]
     DoubleColon,
     #[token(r"=")]
@@ -94,37 +92,60 @@ pub enum TokenType {
     OpenBracket,
     #[token(r"]")]
     ClosBracket,
-    #[token(r"“")]
-    OpenDQuote,
-    #[token(r"”")]
-    ClosDQuote,
-    #[token(r"'")]
-    SingleQuote,
     #[token(r", ")]
     SpacedComma,
     #[token(r"->")]
     RightArrow,
     #[token(r"<-")]
     LeftArrow,
-    #[token(r"@")]
-    At,
     #[token(".")]
     Period,
+    #[token("..")]
+    DoublePeriod,
+    #[token("+")]
+    Add,
+    #[token("-")]
+    Sub,
+    #[token("*")]
+    Mul,
+    #[token("/")]
+    Div,
+    #[token("%")]
+    Mod,
+    #[token("<<")]
+    ShiftL,
+    #[token(">>")]
+    ShiftR,
+    #[token("|")]
+    Pipe,
+    #[token("&")]
+    Ampersand,
+    #[token("^")]
+    Hat,
+    #[token("~")]
+    Tilde,
 
-    #[regex(r"[+\-*/%]")]
-    Arith,
+    #[regex(r"(?&intltrl)", |lex| {
+        let literal = bytes_to_string(lex.slice());
+        literal
+            .parse::<i32>()
+            .unwrap_or_else(|err| fatal(&format!("Invalid integer literal '{}': {}", literal, err)))
+    })]
+    IntegerLtrl(i32),
 
-    #[regex(r"<<|>>|\||[\^&!]")]
-    Bitwise,
+    #[regex(r"-?(?&digit)+\.(?&digit)+", |lex| {
+        let literal = bytes_to_string(lex.slice());
+        literal
+            .parse::<f64>()
+            .unwrap_or_else(|err| fatal(&format!("Invalid float literal '{}': {}", literal, err)))
+    })]
+    FloatLtrl(f64),
 
-    #[regex(r"(?&intltrl)")]
-    IntegerLtrl,
+    #[regex(r"'[^']'", |lex| bytes_to_string(lex.slice()).chars().nth(0))]
+    CharLtrl(char),
 
-    #[regex(r"-?(?&digit)+\.(?&digit)+")]
-    FloatLtrl,
-
-    #[regex(r"“[^”]*?”")]
-    StringLtrl,
+    #[regex(r"“[^”]*?”", |lex| bytes_to_string(lex.slice()))]
+    StringLtrl(String),
 
     #[regex(r"(?s)---[^(---)]*?---")]
     MultiComment,
@@ -132,30 +153,6 @@ pub enum TokenType {
     #[regex(r"--.*?")]
     SingleComment,
 
-    #[regex(r"(?&alpha)_?((?&alphanum)_?)*|_")]
-    Identifier,
-}
-
-pub struct Token {
-    type_: TokenType,
-    lexeme: String,
-}
-
-impl Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "<{:?}, \"{}\">",
-            self.type_,
-            self.lexeme.clone().replace("\n", "\\n")
-        ))
-    }
-}
-
-impl Token {
-    pub fn new(token_type: TokenType, lexeme: String) -> Self {
-        Token {
-            type_: token_type,
-            lexeme,
-        }
-    }
+    #[regex(r"((?&alpha)|@)_?((?&alphanum)_?)*|_", |lex| bytes_to_string(lex.slice()))]
+    Identifier(String),
 }

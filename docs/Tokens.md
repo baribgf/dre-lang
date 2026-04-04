@@ -6,7 +6,7 @@
 
 | Token             | Description
 |-------------------|-----------------------------------------------------|
-| Identifier        | Any string beginning with a letter followed by any number of letters and digits, with at most one underscore separating each, or a single underscore (placeholder).
+| Identifier        | Any string beginning with a letter or `@` followed by any number of letters and digits, with at most one underscore separating each, or a single underscore (placeholder).
 | Newline | `\n` character.
 | Multi-line comment  | A string starting and ending with `---`.
 | Single-line comment | A string starting with `--` and ending with newline.
@@ -19,8 +19,7 @@
 | `begin` keyword | Used to mark the beginning of a block.
 | `end` keyword | Used to mark the ending of a block.
 | `is` keyword | Used to impose protocols.
-| `public` keyword | Used to mark public struct regions.
-| `private` keyword | Used to mark private struct regions.
+| `pub` keyword | Used to mark public struct regions.
 | `self` keyword | Used to refer to struct instances.
 | `return` keyword | Used to return values from functions.
 | `until` keyword | Used to write `until-loop` statements.
@@ -31,17 +30,19 @@
 | `if` keyword | Used to write conditional branching statements.
 | `then` keyword | Used to mark the beginning of a conditional branching block.
 | `else` keyword | Used to write default conditional branching statements.
-| `True` keyword | Used to denote a `true` value litteral.
-| `False` keyword | Used to denote a `false` value litteral.
+| `true` keyword | Used to denote a `true` value literal.
+| `false` keyword | Used to denote a `false` value literal.
 | `not` keyword | Logic negation unary operator.
 | `and` keyword | Logic conjunction operator.
 | `or` keyword | Logic disjunction operator.
 | `inc` keyword | Number increment operator.
 | `dec` keyword | Number decrement operator.
 | `const` keyword | Used to declare constants.
-| Integer litteral | Any string of digits with optional `-` leading sign.
-| Floating-point litteral | Any string of digits containing `.`, with optional `-` leading sign.
-| `:`  | Colon, for type identification.
+| Integer literal | Any sequence of digits with optional `-` leading sign.
+| Floating-point literal | Any sequence of digits containing `.`, with optional `-` leading sign.
+| String literal | Any sequence of UTF-8 characters enclosed between `“` and `”`.
+| Char literal | Any UTF-8 character enclosed between two `'`s.
+| `: `  | Spaced colon, for type identification.
 | `::` | Double colon, for namespaced access.
 | `=` | Used to assign constants, and to test equality.
 | `<>` | Diamond operator, used to test non-equality.
@@ -53,13 +54,19 @@
 | `)` | Closing parenthesis.
 | `[` | Opening bracket.
 | `]` | Closing bracket.
-| `“` | Opening double quotes.
-| `”` | Closing double quotes.
-| `'` | Single quote.
 | `, ` | Spaced comma, for separating elements.
 | `->` | Right arrow, for function return types.
 | `<-` | Left arrow, for assigning values to variables.
-| `@` | At sign, for marking special struct members.
 | `.` | Period, for struct member access.
-| `+, -, *, /, %` | Arithmetic operators.
-| `<<, >>, &, \|, ^, !` | Bitwise operators.
+| `..` | Double period, for specifying ranges.
+| `+` | Addition operator.
+| `-` | Substraction operator.
+| `*` | Multiplication operator.
+| `/` | Division operator.
+| `%` | Modulo operator.
+| `<<` | Shift-left operator.
+| `>>` | Shift-right operator.
+| `&` | Ampersand operator.
+| `|` | Pipe operator.
+| `^` | Hat operator.
+| `~` | Tilde operator.
