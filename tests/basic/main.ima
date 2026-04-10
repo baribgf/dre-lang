@@ -1,4 +1,9 @@
-use io
+use std::io
+use regex::core::dfa
+use self::utils
+
+
+let pub active: Bool
 
 ---
 This is a multi-line comment
@@ -8,41 +13,45 @@ This is a multi-line comment
 
 let DeathReason: enum
 begin
-    Normal
-    Murder
-    Unknown
+    Normal  = 0
+    Murder  = 1
+    Unknown = 2
 end
 
 let Mortal: prot
 begin
-    die: func (reason: DeathReason) -> None
+    let default: func () -> None
+    begin
+        -- Some default behaviour
+    end
+
+    let die: func (reason: DeathReason) -> None
 end
 
 let Person: struct is Mortal, ...
 begin
-public:
     -- Here, begins the public section
-    name: String <- “”
-    age: Int <- 0
+    let name: String <- “”
+    let age: Int <- 0
 
-    @new: func (name: String, age: Int) -> None
+    let pub @new: func (name: String, age: Int) -> None
     begin
         self.name <- name
+        self.GetName().length <- 1
+        Module::getSomething().attr <- 0
         self.age <- age
     end
 
-    GetName: func () -> String
+    let pub GetName: func () -> String
     begin
         return self.name
     end
 
-    die: func (reason: DeathReason) -> None
+    let pub die: func (reason: DeathReason) -> None
     begin
         io::PrintLn(“Mr. ”, self.GetName(), “ passes away..”)
         io::PrintLn(“Because: ”, reason.ToString())
     end
-private:
-    -- Here, begins the private section
 end
 
 ---
@@ -78,8 +87,11 @@ begin
     end
 
     let AGE: const Int = 21
-    person <- Person(“Abdelbari”, AGE)
+    person <- Person::new(“Abdelbari”, AGE)
     io::PrintLn(“Hello, ”, person.GetName(), “!”)
+    person.make().life.kill().spawn()
+
+    Module::x <- 0
 
     let finished: Bool <- True
 

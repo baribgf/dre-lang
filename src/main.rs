@@ -1,17 +1,18 @@
 mod buffer;
 mod lexer;
+mod parser;
 mod report;
 mod token;
 mod utils;
 
-use clap::Parser;
+use clap::Parser as ArgParser;
 use memmap2::Mmap;
 use std::{fs::File, path::Path};
 
-use crate::{lexer::Lexer, report::fatal};
+use crate::{lexer::Lexer, parser::Parser, report::fatal};
 
 /// The `Ima` language compiler
-#[derive(Parser)]
+#[derive(ArgParser)]
 #[command(version, about)]
 pub struct Args {
     /// Source program
@@ -40,9 +41,11 @@ fn main() {
         match unsafe { Mmap::map(&source_file) } {
             Ok(mmap) => {
                 let lexer = Lexer::new(source_path, &mmap[..]);
-                for token in lexer {
-                    println!("{}", token);
-                }
+                /* for token in lexer {
+                    println!("{:?}", token.unwrap().1);
+                } */
+                let parser = Parser::new();
+                let ast = parser.parse(lexer);
             }
             Err(err) => fatal(&err.to_string()),
         }

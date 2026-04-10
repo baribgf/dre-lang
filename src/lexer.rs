@@ -1,69 +1,80 @@
 use logos::{Lexer as LogosLexer, Logos};
 
-use crate::{
-    report::error,
-    token::{Token, TokenType},
-    utils::get_nth_line,
-};
+use crate::{report::error, token::Token, utils::get_nth_line};
 
-pub struct Lexer<'a> {
-    source_path: &'a String,
-    logos_lexer: LogosLexer<'a, TokenType>,
+pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
+
+pub struct Lexer<'input> {
+    source_path: &'input String,
+    inner: LogosLexer<'input, Token>,
     line: usize,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(path: &'a String, source: &'a [u8]) -> Self {
+impl<'input> Lexer<'input> {
+    pub fn new(path: &'input String, source: &'input [u8]) -> Self {
         Self {
             source_path: path,
-            logos_lexer: TokenType::lexer(source),
+            inner: Token::lexer(source),
             line: 1,
         }
     }
 
     pub fn step(&mut self) -> Option<Token> {
-        let token = self.logos_lexer.next();
-        let lexeme = unsafe { String::from_utf8_unchecked(self.logos_lexer.slice().to_vec()) };
-        match token {
+        let token_opt = self.inner.next();
+        let lexeme = unsafe { String::from_utf8_unchecked(self.inner.slice().to_vec()) };
+        match token_opt {
             Some(token_res) => match token_res {
-                Ok(token_type) => {
-                    match token_type {
-                        TokenType::Newline => {
+                Ok(token) => {
+                    match token {
+                        Token::Newline => {
                             self.line += 1;
                         }
-                        TokenType::MultiComment => {
+                        Token::MultiComment => {
                             self.line += lexeme.chars().filter(|c| *c == '\n').count()
                         }
                         _ => {}
                     }
 
-                    Some(Token::new(token_type, lexeme))
+                    Some(token)
                 }
                 Err(_) => {
-                    let token_start = self.logos_lexer.span().start;
-                    let mut i = token_start;
-                    while self.logos_lexer.source()[i] != b'\n' {
-                        i -= 1;
-                    }
-                    let col = token_start - i;
+                    let col = self.get_curr_column();
                     error(
                         "Invalid token",
-                        &get_nth_line(self.logos_lexer.source(), self.line),
+                        &get_nth_line(self.inner.source(), self.line),
                         self.source_path,
                         self.line,
                         col,
                     );
                 }
             },
-            None => None,
+            None => None, // End of input reached
         }
+    }
+
+    fn get_curr_column(&self) -> usize {
+        let token_start = self.inner.span().start;
+        let mut i = token_start;
+        let source = self.inner.source();
+        while source[i] != b'\n' && i > 0 {
+            i -= 1;
+        }
+        let col = token_start - i;
+        col
     }
 }
 
-impl<'a> Iterator for Lexer<'a> {
-    type Item = Token;
+impl<'input> Iterator for Lexer<'input> {
+    type Item = Spanned<Token, usize, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.step()
+        let span = self.inner.span();
+        let start = span.start;
+        let end = span.end;
+
+        match self.step() {
+            Some(token) => Some(Ok((start, token, end))),
+            None => None,
+        }
     }
 }
