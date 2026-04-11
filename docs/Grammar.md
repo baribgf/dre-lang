@@ -1,50 +1,50 @@
 # `Ima` Language Grammar (CFG)
 
 ```
-Program -> Header Globals Constructs
+Program -> Header Constructs
 
-Header -> (UseStmt <Newline>+)*
-UseStmt -> <Use> QualName
+Header -> (Use <Newline>)*
+Use -> <Use> QualName
 
 QualName -> <Identifier> (<DoubleColon> <Identifier>)*
 
-Globals -> (VarDecl <Newline>+)*
-
-VarDecl -> VarDeclHead VarDeclBody
-VarDeclHead -> <Let> <Pub>?
+DeclHead -> <Let> <Pub>?
+VarDecl -> DeclHead VarDeclBody
 VarDeclBody -> <Identifier> <SpacedColon> Type (<LeftArrow> Expr)?
              | <Const> <Identifier> <SpacedColon> Type <Eq> Expr
 
 Type -> QualName
       | <OpenBracket> <IntegerLtrl>? Type <ClosBracket>
-TypeDeclHead -> <Let> <Pub>? <Identifier> <SpacedColon>
+TypeDeclHead -> DeclHead <Identifier> <SpacedColon>
 
-Constructs -> (Construct <Newline>+)*
+Constructs -> (Construct <Newline>)*
 Construct -> EnumDef
            | StructDef
            | ProtDef
            | FuncDef
+           | VarDecl
 
 ProtImpos -> <Is> QualName (<SpacedComma> QualName)*
 
 EnumDef -> TypeDeclHead <Enum> <Newline> <Begin> <Newline> EnumBody <End>
-EnumBody -> (<Identifier> (<Eq> <IntegerLtrl>)? <Newline>+)*
+EnumBody -> (<Identifier> (<Eq> <IntegerLtrl>)? <Newline>)*
 
 StructDef -> TypeDeclHead <Struct> ProtImpos? <Newline> <Begin> <Newline> StructBody <End>
-StructBody -> (Member <Newline>+)*
+StructBody -> (Member <Newline>)*
 
 Member -> VarDecl
         | FuncDef
 
 ProtDef -> TypeDeclHead <Prot> ProtImpos? <Newline> <Begin> <Newline> ProtBody <End>
-ProtBody -> (FuncDecl (<Newline> FuncBlock)? <Newline>+)*
+ProtBody -> (FuncDecl (<Newline> FuncBlock)? <Newline>)*
 
 FuncDef -> FuncDecl <Newline> FuncBlock
 FuncDecl -> TypeDeclHead <Func> <OpenParen> FuncParams? <ClosParen> <RightArrow> Type
 FuncBlock -> <Begin> <Newline> Statements <End>
 FuncParams -> FuncParam (<SpacedComma> FuncParam)*
 FuncParam -> <Identifier> <SpacedColon> Type
-Statements -> (Statement <Newline>+)*
+
+Statements -> (Statement <Newline>)*
 
 Statement -> VarDecl
            | FuncDef
@@ -58,10 +58,10 @@ Statement -> VarDecl
            | Increment
            | Decrement
 
-FuncCall -> PostfixExpr' <OpenParen> FuncArgs? <ClosParen>
+FuncCall -> PrimaryExpr' PostfixOp* <OpenParen> FuncArgs? <ClosParen>
 
 Assignment -> LValue <LeftArrow> RValue
-LValue -> (<Self> | QualName) (Index | <Period> <Identifier>)*
+LValue -> PrimaryExpr' PostfixOp*
 RValue -> Expr
 
 UntilLoop -> <Until> Expr DoBlock
@@ -83,7 +83,7 @@ Return -> <Return> Expr
 Increment -> <Inc> LValue
 Decrement -> <Dec> LValue
 Call -> <OpenParen> FuncArgs? <ClosParen>
-Index -> <LeftBracket> Expr <RightBracket>
+Index -> <OpenBracket> Expr <ClosBracket>
 
 Expr -> OrExpr
 OrExpr -> AndExpr (<Or> AndExpr)*
@@ -98,7 +98,6 @@ AddExpr -> MulExpr ((<Add> | <Sub>) MulExpr)*
 MulExpr -> UnaryExpr ((<Mul> | <Div> | <Mod>) UnaryExpr)*
 UnaryExpr -> (<Add> | <Sub> | <Not> | <Tilde>) UnaryExpr | PostfixExpr
 PostfixExpr -> PrimaryExpr PostfixOp*
-PostfixExpr' -> PrimaryExpr' PostfixOp*
 PostfixOp -> Call
            | Index
            | <Period> <Identifier>

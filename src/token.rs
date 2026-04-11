@@ -4,6 +4,7 @@ use crate::{report::fatal, utils::bytes_to_string};
 
 #[derive(Logos, PartialEq, Clone, Debug)]
 #[logos(skip r" +")]
+#[logos(skip r"\n{2,}")]
 #[logos(utf8 = false)]
 #[logos(subpattern alpha = r"[a-zA-Z]")]
 #[logos(subpattern digit = r"[0-9]")]
