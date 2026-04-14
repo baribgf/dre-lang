@@ -28,6 +28,8 @@ extern {
         "For" => Token::For,
         "Do" => Token::Do,
         "In" => Token::In,
+        "Break" => Token::Break,
+        "Skip" => Token::Skip,
         "If" => Token::If,
         "Then" => Token::Then,
         "Else" => Token::Else,
@@ -81,178 +83,246 @@ pub Program: Program = {
     <h:Header> <c:Constructs> => Program::new(h, c),
 };
 
-Header: Header = { <u:(<Use> "Newline")*> => u };
-Use: UseStmt = { "Use" <q:QualName> => q };
+Header: Header = { <u:(<Use> "Newline"+)*> => u };
+Use: UseStmt = {
+    "Use" <p:"Period"?> <q:QualName> => UseStmt::new(p.is_some(), q)
+};
 
-QualName: Vec<String> = {
+QualName: QualName = {
     <h:"Identifier"> <t:("DoubleColon" <"Identifier">)*> => extract_ids(h, t),
 };
 
-DeclHead: () = { "Let" "Pub"? => () };
-VarDecl: () = { DeclHead VarDeclBody => () };
-VarDeclBody: () = {
-    "Identifier" "SpacedColon" Type ("LeftArrow" Expr)? => (),
-    "Const" "Identifier" "SpacedColon" Type "Eq" Expr => (),
+DeclHead: bool = { "Let" <p:"Pub"?> => p.is_some() };
+VarDecl: VarDecl = {
+    <h:DeclHead> <b:VarDeclBody> => VarDecl::new(h, b.0, b.1, b.2, b.3)
+};
+VarDeclBody: (bool, String, Type, Option<Expr>) = {
+    <id:"Identifier"> "SpacedColon" <t:Type> <v:("LeftArrow" <Expr>)?> => (false, id.identifier(), t, v),
+    "Const" <id:"Identifier"> "SpacedColon" <t:Type> "Eq" <v:Expr> => (true, id.identifier(), t, Some(v)),
 };
 
-Type: () = {
-    QualName => (),
-    "OpenBracket" "IntegerLtrl"? Type "ClosBracket" => (),
+Type: Type = {
+    <q:QualName> => Type::QualName(q),
+    "OpenBracket" <id:"IntegerLtrl"?> <t:Type> "ClosBracket" => Type::ArrayOf(id.map(|inner| inner.int_ltrl()), t.into()),
 };
-TypeDeclHead: () = { DeclHead "Identifier" "SpacedColon" => () };
+TypeDeclHead: (bool, String) = {
+    <p:DeclHead> <id:"Identifier"> "SpacedColon" => (p, id.identifier())
+};
 
 Constructs: Vec<Construct> = {
-    <c:(<Construct> "Newline")*> => c,
+    <c:(<Construct> "Newline"+)*> => c,
 };
 
 Construct: Construct = {
-    EnumDef => Construct::EnumDef,
-    StructDef => Construct::StructDef,
-    ProtDef => Construct::ProtDef,
-    FuncDef => Construct::FuncDef,
-    VarDecl => Construct::VarDecl,
+    <x:EnumDef> => Construct::EnumDef(x),
+    <x:StructDef> => Construct::StructDef(x),
+    <x:ProtDef> => Construct::ProtDef(x),
+    <x:FuncDef> => Construct::FuncDef(x),
+    <x:VarDecl> => Construct::VarDecl(x),
 };
 
-ProtImpos: () = { "Is" QualName ("SpacedComma" QualName)* => () };
-
-EnumDef: () = {
-    TypeDeclHead "Enum" "Newline" "Begin" "Newline" EnumBody "End" => ()
-};
-EnumBody: () = { (EnumElem "Newline")* => () };
-EnumElem: () = { "Identifier" ("Eq" "IntegerLtrl")? };
-
-StructDef: () = {
-    TypeDeclHead "Struct" ProtImpos? "Newline" "Begin" "Newline" StructBody "End" => ()
-};
-StructBody: () = { (Member "Newline")* => () };
-Member: () = {
-    VarDecl => (),
-    FuncDef => (),
+ProtImpos: Vec<QualName> = {
+    "Is" <h:QualName> <t:("SpacedComma" <QualName>)*> => splice(h, t)
 };
 
-ProtDef: () = { TypeDeclHead "Prot" ProtImpos? "Newline" "Begin" "Newline" ProtBody "End" => () };
-ProtBody: () = { (FuncDecl ("Newline" FuncBlock)? "Newline")* => () };
-
-FuncDef: () = { FuncDecl "Newline" FuncBlock => () };
-FuncDecl: () = { TypeDeclHead "Func" "OpenParen" FuncParams? "ClosParen" "RightArrow" Type => () };
-FuncBlock: () = { "Begin" "Newline" Statements "End" => () };
-FuncParams: () = { FuncParam ("SpacedComma" FuncParam)* => () };
-FuncParam: () = { "Identifier" "SpacedColon" Type => () };
-
-Statements: () = {
-    (Statement "Newline")* => (),
+EnumDef: EnumDef = {
+    <h:TypeDeclHead> "Enum" "Newline"
+    "Begin" "Newline"+ <b:EnumBody> "End" => EnumDef::new(h.0, h.1, b)
+};
+EnumBody: Vec<EnumElem> = { <e:(<EnumElem> "Newline"+)*> => e };
+EnumElem: EnumElem = {
+    <n:"Identifier"> <v:("Eq" <"IntegerLtrl">)?> => EnumElem::new(n.identifier(), v.map(|inner| inner.int_ltrl()))
 };
 
-Statement: () = {
-    VarDecl => (),
-    FuncDef => (),
-    Assignment => (),
-    UntilLoop => (),
-    WhileLoop => (),
-    ForLoop => (),
-    IfElse => (),
-    FuncCall => (),
-    Return => (),
-    Increment => (),
-    Decrement => (),
+StructDef: StructDef = {
+    <h:TypeDeclHead> "Struct" <pi:ProtImpos?> "Newline"
+    "Begin" "Newline"+ <b:StructBody> "End" => StructDef::new(h.0, h.1, pi.unwrap_or(Vec::new()), b)
+};
+StructBody: Vec<StructMember> = {
+    <m:(<StructMember> "Newline"+)*> => m
+};
+StructMember: StructMember = {
+    <v:VarDecl> => StructMember::VarDecl(v),
+    <f:FuncDef> => StructMember::FuncDef(f),
 };
 
-FuncCall: () = { PrimaryExprPrime PostfixOp* "OpenParen" FuncArgs? "ClosParen" => () };
-
-Assignment: () = { LValue "LeftArrow" RValue => () };
-LValue: () = { PrimaryExprPrime PostfixOp* => () };
-RValue: () = { Expr => () };
-
-UntilLoop: () = { "Until" Expr DoBlock => () };
-WhileLoop: () = { "While" Expr DoBlock => () };
-
-ForLoop: () = { "For" "Identifier" "In" Expr DoBlock => () };
-
-DoBlock: () = { "Do" "Newline" Statements "End" => () };
-
-IfElse: () = { If ElseIf* Else? "End" };
-If: () = { "If" Expr "Then" "Newline" Statements };
-ElseIf: () = { "Else" If };
-Else: () = { "Else" "Newline" Statements };
-
-FuncArgs: () = { FuncArg ("SpacedComma" FuncArg)* => () };
-FuncArg: () = { Expr => () };
-
-Return: () = { "Return" Expr => () };
-Increment: () = { "Inc" LValue => () };
-Decrement: () = { "Dec" LValue => () };
-Call: () = { "OpenParen" FuncArgs? "ClosParen" => () };
-Index: () = { "OpenBracket" Expr "ClosBracket" => () };
-
-Expr: () = { OrExpr => () };
-OrExpr: () = { AndExpr ("Or" AndExpr)* => () };
-AndExpr: () = { BitOr ("And" BitOr)* => () };
-BitOr: () = { BitXor ("Pipe" BitXor)* => () };
-BitXor: () = { BitAnd ("Hat" BitAnd)* => () };
-BitAnd: () = { RelExpr ("Ampersand" RelExpr)* => () };
-RelExpr: () = { ShiftExpr (RelOp ShiftExpr)* => () };
-ShiftExpr: () = { RngExpr (ShiftOp RngExpr)* => () };
-RngExpr: () = { AddExpr ("DoublePeriod" AddExpr)? => () };
-AddOp: () = {
-    "Add" => (),
-    "Sub" => (),
+ProtDef: ProtDef = {
+    <h:TypeDeclHead> "Prot" <pi:ProtImpos?> "Newline"
+    "Begin" "Newline"+ <b:ProtBody> "End" => ProtDef::new(h.0, h.1, pi.unwrap_or(Vec::new()), b)
 };
-AddTail: () = { AddOp MulExpr => () };
-AddExpr: () = { MulExpr AddTail* => () };
-
-MulOp: () = {
-    "Mul" => (),
-    "Div" => (),
-    "Mod" => (),
-};
-MulTail: () = { MulOp UnaryExpr => () };
-MulExpr: () = { UnaryExpr MulTail* => () };
-
-UnaryOp: () = {
-    "Add" => (),
-    "Sub" => (),
-    "Not" => (),
-    "Tilde" => (),
-};
-UnaryExpr: () = {
-    UnaryOp UnaryExpr => (),
-    PostfixExpr => (),
+ProtBody: Vec<ProtMember> = {
+    <m:(<FuncDecl> <("Newline" <FuncBlock>)?> "Newline"+)*> => m.into_iter().map(|item| ProtMember::new(item.0, item.1)).collect()
 };
 
-PostfixExpr: () = { PrimaryExpr PostfixOp* => () };
-
-PostfixOp: () = {
-    Call => (),
-    Index => (),
-    "Period" "Identifier" => (),
+FuncDef: FuncDef = {
+    <d:FuncDecl> "Newline" <s:FuncBlock> => FuncDef::new(d, s)
+};
+FuncDecl: FuncDecl = {
+    <h:TypeDeclHead> "Func" "OpenParen" <p:FuncParams?> "ClosParen"
+    "RightArrow" <t:Type> => FuncDecl::new(h.0, h.1, p.unwrap_or(Vec::new()), t)
+};
+FuncBlock: Vec<Statement> = {
+    "Begin" "Newline"+ <s:Statements> "End" => s
+};
+FuncParams: Vec<FuncParam> = {
+    <h:FuncParam> <t:("SpacedComma" <FuncParam>)*> => splice(h, t)
+};
+FuncParam: FuncParam = {
+    <id:"Identifier"> "SpacedColon" <t:Type> => FuncParam::new(id.identifier(), t)
 };
 
-PrimaryExpr: () = {
-    "StringLtrl" => (),
-    "CharLtrl" => (),
-    "IntegerLtrl" => (),
-    "FloatLtrl" => (),
-    "TrueLtrl" => (),
-    "FalseLtrl" => (),
-    "OpenParen" Expr "ClosParen" => (),
-    PrimaryExprPrime => (),
+Statements: Vec<Statement> = {
+    <s:(<Statement> "Newline"+)*> => s,
 };
 
-PrimaryExprPrime: () = {
-    "Self" => (),
-    QualName => (),
+Statement: Statement = {
+    <x:VarDecl> => Statement::VarDecl(x),
+    <x:FuncDef> => Statement::FuncDef(x),
+    <x:Assignment> => Statement::Assignment(x),
+    <x:UntilLoop> => Statement::UntilLoop(x),
+    <x:WhileLoop> => Statement::WhileLoop(x),
+    <x:ForLoop> => Statement::ForLoop(x),
+    <x:IfElse> => Statement::IfElse(x),
+    <x:FuncCall> => Statement::FuncCall(x),
+    <x:Return> => Statement::Return(x),
+    "Break" => Statement::Break,
+    "Skip" => Statement::Skip,
+    <x:Increment> => Statement::Increment(x),
+    <x:Decrement> => Statement::Decrement(x),
 };
 
-ShiftOp: () = {
-    "ShiftL" => (),
-    "ShiftR" => (),
+FuncCall: FuncCall = {
+    <h:PrimaryExprPrime> <t:PostfixOp*> <c:Call> => FuncCall::new(h, t, c)
 };
 
-RelOp: () = {
-    "Eq" => (),
-    "Diamond" => (),
-    "Lt" => (),
-    "Lte" => (),
-    "Gt" => (),
-    "Gte" => (),
+Assignment: Assignment = {
+    <l:LValue> "LeftArrow" <r:RValue> => Assignment::new(l, r)
+};
+LValue: LValue = {
+    <h:PrimaryExprPrime> <b:PostfixOp*> <t:PostfixOpPrime> => LValue::new(h, b, t)
+};
+RValue: Expr = { <Expr> => <> };
+
+UntilLoop: CondLoop = {
+    "Until" <e:Expr> <b:DoBlock> => CondLoop::new(false, e, b)
+};
+WhileLoop: CondLoop = {
+    "While" <e:Expr> <b:DoBlock> => CondLoop::new(true, e, b)
+};
+
+ForLoop: ForLoop = {
+    "For" <id:"Identifier"> "In" <e:Expr> <b:DoBlock> => ForLoop::new(id.identifier(), e, b)
+};
+
+DoBlock: Vec<Statement> = { "Do" "Newline"+ <Statements> "End" => <> };
+
+IfElse: IfElse = {
+    <if_:If> <ei:ElseIf*> <e:Else?> "End" => IfElse::new(if_, ei, e.unwrap_or(Vec::new()))
+};
+If: If = {
+    "If" <c:Expr> "Then" "Newline"+ <b:Statements> => If::new(c, b)
+};
+ElseIf: If = { "Else" <If> => <> };
+Else: Vec<Statement> = { "Else" "Newline"+ <Statements> => <> };
+
+FuncArgs: Vec<FuncArg> = {
+    <h:FuncArg> <t:("SpacedComma" <FuncArg>)*> => splice(h, t)
+};
+FuncArg: FuncArg = { <Expr> => <> };
+
+Return: Expr = { "Return" <Expr> => <> };
+Increment: LValue = { "Inc" <LValue> => <> };
+Decrement: LValue = { "Dec" <LValue> => <> };
+Call: Call = {
+    "OpenParen" <a:FuncArgs?> "ClosParen" => a.unwrap_or(Vec::new())
+};
+Index: Index = { "OpenBracket" <Expr> "ClosBracket" => <> };
+
+Expr: Expr = { <OrExpr> => <> };
+OrExpr: Vec<AndExpr> = {
+    <h:AndExpr> <t:("Or" <AndExpr>)*> => splice(h, t)
+};
+AndExpr: AndExpr = { <h:BitOr> <t:("And" <BitOr>)*> => splice(h, t) };
+BitOr: BitOr = { <h:BitXor> <t:("Pipe" <BitXor>)*> => splice(h, t) };
+BitXor: BitXor = { <h:BitAnd> <t:("Hat" <BitAnd>)*> => splice(h, t) };
+BitAnd: BitAnd = { <h:RelExpr> <t:("Ampersand" <RelExpr>)*> => splice(h, t) };
+RelExpr: RelExpr = {
+    <h:ShiftExpr> <t:(<RelOp> <ShiftExpr>)*> => splice((RelOp::Id, h), t)
+};
+ShiftExpr: ShiftExpr = {
+    <h:RngExpr> <t:(<ShiftOp> <RngExpr>)*> => splice((ShiftOp::Left, h), t)
+};
+RngExpr: RngExpr = {
+    <l:AddExpr> <r:("DoublePeriod" <AddExpr>)?> => (l, r)
+};
+AddOp: AddOp = {
+    "Add" => AddOp::Add,
+    "Sub" => AddOp::Sub,
+};
+AddTerm: AddTerm = { <op:AddOp> <m:MulExpr> => (op, m) };
+AddExpr: AddExpr = {
+    <h:MulExpr> <t:AddTerm*> => splice((AddOp::Add, h), t)
+};
+
+MulOp: MulOp = {
+    "Mul" => MulOp::Mul,
+    "Div" => MulOp::Div,
+    "Mod" => MulOp::Mod,
+};
+MulFact: MulFact = { <op:MulOp> <u:UnaryExpr> => (op, u) };
+MulExpr: MulExpr = { <u:UnaryExpr> <f:MulFact*> => splice((MulOp::Mul, u), f) };
+
+UnaryOp: UnaryOp = {
+    "Add" => UnaryOp::Add,
+    "Sub" => UnaryOp::Sub,
+    "Not" => UnaryOp::Not,
+    "Tilde" => UnaryOp::Tilde,
+};
+UnaryExpr: UnaryExpr = {
+    <op:UnaryOp> <e:UnaryExpr> => UnaryExpr::Term(op, Box::new(e)),
+    <p:PostfixExpr> => UnaryExpr::Postfix(p),
+};
+
+PostfixExpr: PostfixExpr = {
+    <h:PrimaryExpr> <t:PostfixOp*> => PostfixExpr::new(h, t)
+};
+
+PostfixOp: PostfixOp = {
+    <c:Call> => PostfixOp::Call(c),
+    <p:PostfixOpPrime> => PostfixOp::PostfixOpPrime(p),
+};
+
+PostfixOpPrime: PostfixOpPrime = {
+    <i:Index> => PostfixOpPrime::Index(i),
+    "Period" <id:"Identifier"> => PostfixOpPrime::Access(id.identifier()),
+};
+
+PrimaryExpr: PrimaryExpr = {
+    <s:"StringLtrl"> => PrimaryExpr::StringLtrl(s.str_ltrl()),
+    <c:"CharLtrl"> => PrimaryExpr::CharLtrl(c.char_ltrl()),
+    <i:"IntegerLtrl"> => PrimaryExpr::IntegerLtrl(i.int_ltrl()),
+    <f:"FloatLtrl"> => PrimaryExpr::FloatLtrl(f.float_ltrl()),
+    <"TrueLtrl"> => PrimaryExpr::BoolLtrl(true),
+    <"FalseLtrl"> => PrimaryExpr::BoolLtrl(false),
+    "OpenParen" <Expr> "ClosParen" => PrimaryExpr::Expr(<>),
+    <PrimaryExprPrime> => PrimaryExpr::Prime(<>),
+};
+
+PrimaryExprPrime: PrimaryExprPrime = {
+    "Self" => PrimaryExprPrime::Self_,
+    <q:QualName> => PrimaryExprPrime::QualName(q),
+};
+
+ShiftOp: ShiftOp = {
+    "ShiftL" => ShiftOp::Left,
+    "ShiftR" => ShiftOp::Right,
+};
+
+RelOp: RelOp = {
+    "Eq" => RelOp::Eq,
+    "Diamond" => RelOp::Diamond,
+    "Lt" => RelOp::Lt,
+    "Lte" => RelOp::Lte,
+    "Gt" => RelOp::Gt,
+    "Gte" => RelOp::Gte,
 };

@@ -27,6 +27,8 @@
 | `for` keyword | Used to write `for-loop` statements.
 | `do` keyword | Used to mark the beginning of a `do-end` block
 | `in` keyword | Used to delimit between `for-loop` iteration variable binding and iterator expression.
+| `break` keyword | Used to quit a loop.
+| `skip` keyword | Used to interrupt an iteration of a loop.
 | `if` keyword | Used to write conditional branching statements.
 | `then` keyword | Used to mark the beginning of a conditional branching block.
 | `else` keyword | Used to write default conditional branching statements.

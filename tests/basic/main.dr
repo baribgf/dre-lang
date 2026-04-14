@@ -1,6 +1,7 @@
 use std::io
 use regex::core::dfa
-use self::utils
+
+use .utils::Something
 
 
 let pub active: Bool
@@ -28,7 +29,7 @@ begin
     let die: func (reason: DeathReason) -> None
 end
 
-let Person: struct is Mortal, ...
+let Person: struct is Mortal --, ...
 begin
     -- Here, begins the public section
     let name: String <- “”
@@ -86,7 +87,7 @@ begin
         io::Oops(“Something went wrong!”)
     end
 
-    let AGE: const Int = 21
+    let const AGE: Int = 21
     person <- Person::new(“Abdelbari”, AGE)
     io::PrintLn(“Hello, ”, person.GetName(), “!”)
     person.make().life.kill().spawn()

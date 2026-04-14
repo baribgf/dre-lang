@@ -30,20 +30,25 @@ impl<'input> Lexer<'input> {
                             self.line += 1;
                         }
                         Token::MultiComment => {
-                            self.line += lexeme.chars().filter(|c| *c == '\n').count()
+                            self.line += lexeme.chars().filter(|c| *c == '\n').count();
+                            return self.step();
                         }
+                        Token::SingleComment => {
+                            return self.step();
+                        }
+
                         _ => {}
                     }
 
                     Some(token)
                 }
                 Err(_) => {
-                    let col = self.get_curr_column();
+                    let (line, col) = self.get_position();
                     error(
                         "Invalid token",
-                        &get_nth_line(self.inner.source(), self.line),
+                        &get_nth_line(self.inner.source(), line),
                         self.source_path,
-                        self.line,
+                        line,
                         col,
                     );
                 }
@@ -52,15 +57,19 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn get_curr_column(&self) -> usize {
-        let token_start = self.inner.span().start;
-        let mut i = token_start;
+    fn get_position(&self) -> (usize, usize) {
         let source = self.inner.source();
+        if source.is_empty() {
+            return (self.line, 1);
+        }
+
+        let token_start = self.inner.span().start.min(source.len() - 1);
+        let mut i = token_start;
         while source[i] != b'\n' && i > 0 {
             i -= 1;
         }
-        let col = token_start - i;
-        col
+        let col = (token_start - i).max(1);
+        (self.line, col)
     }
 }
 
@@ -68,12 +77,10 @@ impl<'input> Iterator for Lexer<'input> {
     type Item = Spanned<Token, usize, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let span = self.inner.span();
-        let start = span.start;
-        let end = span.end;
+        let (line, col) = self.get_position();
 
         match self.step() {
-            Some(token) => Some(Ok((start, token, end))),
+            Some(token) => Some(Ok((line, token, col))),
             None => None,
         }
     }

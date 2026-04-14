@@ -1,3 +1,4 @@
+mod ast;
 mod buffer;
 mod lexer;
 mod parser;
@@ -6,10 +7,14 @@ mod token;
 mod utils;
 
 use clap::Parser as ArgParser;
+use lalrpop_util::ParseError;
 use memmap2::Mmap;
 use std::{fs::File, path::Path};
 
-use crate::{lexer::Lexer, parser::Parser, report::fatal};
+use crate::lexer::Lexer;
+use crate::parser::Parser;
+use crate::report::{error, fatal};
+use crate::utils::get_nth_line;
 
 /// The `Dre` language compiler
 #[derive(ArgParser)]
@@ -40,14 +45,31 @@ fn main() {
 
         match unsafe { Mmap::map(&source_file) } {
             Ok(mmap) => {
-                let lexer = Lexer::new(source_path, &mmap[..]);
+                let source = &mmap[..];
+                let lexer = Lexer::new(source_path, source);
                 /* for token in lexer {
                     println!("{:?}", token.unwrap().1);
                 } */
                 let parser = Parser::new();
-                let ast = parser.parse(lexer);
+                let res = parser.parse(lexer);
+                match res {
+                    Ok(_) => println!("Parsing successful!"),
+                    Err(err) => match err {
+                        ParseError::UnrecognizedToken { token, expected } => {
+                            let (line, _, col) = token;
+                            error(
+                                &format!("Syntax error, expected: {{{}}}", expected.join(", ")),
+                                &get_nth_line(source, line),
+                                source_path,
+                                line,
+                                col,
+                            );
+                        }
+                        _ => unimplemented!(),
+                    },
+                }
             }
-            Err(err) => fatal(&err.to_string()),
+            Err(err) => fatal(&format!("Memory mapping error: {:?}", err)),
         }
     }
 }

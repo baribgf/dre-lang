@@ -3,8 +3,8 @@
 ```
 Program -> Header Constructs
 
-Header -> (Use <Newline>)*
-Use -> <Use> QualName
+Header -> (Use <Newline>+)*
+Use -> <Use> <Period>? QualName
 
 QualName -> <Identifier> (<DoubleColon> <Identifier>)*
 
@@ -17,7 +17,7 @@ Type -> QualName
       | <OpenBracket> <IntegerLtrl>? Type <ClosBracket>
 TypeDeclHead -> DeclHead <Identifier> <SpacedColon>
 
-Constructs -> (Construct <Newline>)*
+Constructs -> (Construct <Newline>+)*
 Construct -> EnumDef
            | StructDef
            | ProtDef
@@ -26,25 +26,25 @@ Construct -> EnumDef
 
 ProtImpos -> <Is> QualName (<SpacedComma> QualName)*
 
-EnumDef -> TypeDeclHead <Enum> <Newline> <Begin> <Newline> EnumBody <End>
-EnumBody -> (<Identifier> (<Eq> <IntegerLtrl>)? <Newline>)*
+EnumDef -> TypeDeclHead <Enum> <Newline> <Begin> <Newline>+ EnumBody <End>
+EnumBody -> (<Identifier> (<Eq> <IntegerLtrl>)? <Newline>+)*
 
-StructDef -> TypeDeclHead <Struct> ProtImpos? <Newline> <Begin> <Newline> StructBody <End>
-StructBody -> (Member <Newline>)*
+StructDef -> TypeDeclHead <Struct> ProtImpos? <Newline> <Begin> <Newline>+ StructBody <End>
+StructBody -> (StructMember <Newline>+)*
 
-Member -> VarDecl
+StructMember -> VarDecl
         | FuncDef
 
-ProtDef -> TypeDeclHead <Prot> ProtImpos? <Newline> <Begin> <Newline> ProtBody <End>
-ProtBody -> (FuncDecl (<Newline> FuncBlock)? <Newline>)*
+ProtDef -> TypeDeclHead <Prot> ProtImpos? <Newline> <Begin> <Newline>+ ProtBody <End>
+ProtBody -> (FuncDecl (<Newline> FuncBlock)? <Newline>+)*
 
 FuncDef -> FuncDecl <Newline> FuncBlock
 FuncDecl -> TypeDeclHead <Func> <OpenParen> FuncParams? <ClosParen> <RightArrow> Type
-FuncBlock -> <Begin> <Newline> Statements <End>
+FuncBlock -> <Begin> <Newline>+ Statements <End>
 FuncParams -> FuncParam (<SpacedComma> FuncParam)*
 FuncParam -> <Identifier> <SpacedColon> Type
 
-Statements -> (Statement <Newline>)*
+Statements -> (Statement <Newline>+)*
 
 Statement -> VarDecl
            | FuncDef
@@ -55,13 +55,15 @@ Statement -> VarDecl
            | IfElse
            | FuncCall
            | Return
+           | Break
+           | Skip
            | Increment
            | Decrement
 
-FuncCall -> PrimaryExpr' PostfixOp* <OpenParen> FuncArgs? <ClosParen>
+FuncCall -> PrimaryExpr' PostfixOp* Call
 
 Assignment -> LValue <LeftArrow> RValue
-LValue -> PrimaryExpr' PostfixOp*
+LValue -> PrimaryExpr' PostfixOp* PostfixOp'
 RValue -> Expr
 
 UntilLoop -> <Until> Expr DoBlock
@@ -69,12 +71,12 @@ WhileLoop -> <While> Expr DoBlock
 
 ForLoop -> <For> <Identifier> <In> Expr DoBlock
 
-DoBlock -> <Do> <Newline> Statements <End>
+DoBlock -> <Do> <Newline>+ Statements <End>
 
 IfElse -> If ElseIf* Else? <End>
-If -> <If> Expr <Then> <Newline> Statements
+If -> <If> Expr <Then> <Newline>+ Statements
 ElseIf -> <Else> If
-Else -> <Else> <Newline> Statements
+Else -> <Else> <Newline>+ Statements
 
 FuncArgs -> FuncArg (<SpacedComma> FuncArg)*
 FuncArg -> Expr
@@ -97,10 +99,13 @@ RngExpr -> AddExpr (<DoublePeriod> AddExpr)?
 AddExpr -> MulExpr ((<Add> | <Sub>) MulExpr)*
 MulExpr -> UnaryExpr ((<Mul> | <Div> | <Mod>) UnaryExpr)*
 UnaryExpr -> (<Add> | <Sub> | <Not> | <Tilde>) UnaryExpr | PostfixExpr
+
 PostfixExpr -> PrimaryExpr PostfixOp*
 PostfixOp -> Call
-           | Index
-           | <Period> <Identifier>
+           | PostfixOp'
+PostfixOp' -> Index
+            | <Period> <Identifier>
+
 PrimaryExpr -> <StringLtrl>
              | <CharLtrl>
              | <IntegerLtrl>

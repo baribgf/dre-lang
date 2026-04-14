@@ -4,7 +4,6 @@ use crate::{report::fatal, utils::bytes_to_string};
 
 #[derive(Logos, PartialEq, Clone, Debug)]
 #[logos(skip r" +")]
-#[logos(skip r"\n{2,}")]
 #[logos(utf8 = false)]
 #[logos(subpattern alpha = r"[a-zA-Z]")]
 #[logos(subpattern digit = r"[0-9]")]
@@ -47,6 +46,10 @@ pub enum Token {
     Do,
     #[token(r"in")]
     In,
+    #[token(r"break")]
+    Break,
+    #[token(r"skip")]
+    Skip,
     #[token(r"if")]
     If,
     #[token(r"then")]
@@ -156,4 +159,41 @@ pub enum Token {
 
     #[regex(r"((?&alpha)|@)_?((?&alphanum)_?)*|_", |lex| bytes_to_string(lex.slice()))]
     Identifier(String),
+}
+
+impl Token {
+    pub fn identifier(&self) -> String {
+        if let Token::Identifier(s) = self {
+            return s.to_owned();
+        }
+        fatal(&format!("Token: {:?} is not an identifier.", self));
+    }
+
+    pub fn int_ltrl(&self) -> i32 {
+        if let Token::IntegerLtrl(i) = self {
+            return *i;
+        }
+        fatal(&format!("Token: {:?} is not an integer literal.", self));
+    }
+
+    pub fn float_ltrl(&self) -> f64 {
+        if let Token::FloatLtrl(f) = self {
+            return *f;
+        }
+        fatal(&format!("Token: {:?} is not a float literal.", self));
+    }
+
+    pub fn char_ltrl(&self) -> char {
+        if let Token::CharLtrl(c) = self {
+            return *c;
+        }
+        fatal(&format!("Token: {:?} is not a char literal.", self));
+    }
+
+    pub fn str_ltrl(&self) -> String {
+        if let Token::StringLtrl(s) = self {
+            return s.to_owned();
+        }
+        fatal(&format!("Token: {:?} is not a string literal.", self));
+    }
 }
