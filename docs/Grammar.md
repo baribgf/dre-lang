@@ -1,4 +1,4 @@
-# `Ima` Language Grammar (CFG)
+# `Dre` Language Grammar (CFG)
 
 ```
 Program -> Header Constructs

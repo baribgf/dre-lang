@@ -11,7 +11,7 @@ use std::{fs::File, path::Path};
 
 use crate::{lexer::Lexer, parser::Parser, report::fatal};
 
-/// The `Ima` language compiler
+/// The `Dre` language compiler
 #[derive(ArgParser)]
 #[command(version, about)]
 pub struct Args {

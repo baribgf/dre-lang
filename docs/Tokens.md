@@ -1,4 +1,4 @@
-# `Ima` Language Tokens
+# `Dre` Language Tokens
 
 > N.B All tokens are case-sensitive.
 
