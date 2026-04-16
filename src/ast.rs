@@ -235,13 +235,12 @@ impl Assignment {
 #[derive(Debug)]
 pub struct LValue {
     head: PrimaryExprPrime,
-    body: Vec<PostfixOp>,
-    tail: PostfixOpPrime,
+    tail: Option<(Vec<PostfixOp>, PostfixOpPrime)>,
 }
 
 impl LValue {
-    pub fn new(head: PrimaryExprPrime, body: Vec<PostfixOp>, tail: PostfixOpPrime) -> Self {
-        Self { head, body, tail }
+    pub fn new(head: PrimaryExprPrime, tail: Option<(Vec<PostfixOp>, PostfixOpPrime)>) -> Self {
+        Self { head, tail }
     }
 }
 

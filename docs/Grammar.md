@@ -33,7 +33,7 @@ StructDef -> TypeDeclHead <Struct> ProtImpos? <Newline> <Begin> <Newline>+ Struc
 StructBody -> (StructMember <Newline>+)*
 
 StructMember -> VarDecl
-        | FuncDef
+              | FuncDef
 
 ProtDef -> TypeDeclHead <Prot> ProtImpos? <Newline> <Begin> <Newline>+ ProtBody <End>
 ProtBody -> (FuncDecl (<Newline> FuncBlock)? <Newline>+)*
@@ -63,7 +63,7 @@ Statement -> VarDecl
 FuncCall -> PrimaryExpr' PostfixOp* Call
 
 Assignment -> LValue <LeftArrow> RValue
-LValue -> PrimaryExpr' PostfixOp* PostfixOp'
+LValue -> PrimaryExpr' (PostfixOp* PostfixOp')?
 RValue -> Expr
 
 UntilLoop -> <Until> Expr DoBlock

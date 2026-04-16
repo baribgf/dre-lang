@@ -69,13 +69,13 @@ extern {
         "Ampersand" => Token::Ampersand,
         "Hat" => Token::Hat,
         "Tilde" => Token::Tilde,
-        "IntegerLtrl" => Token::IntegerLtrl(int_ltrl),
-        "FloatLtrl" => Token::FloatLtrl(float_ltrl),
-        "CharLtrl" => Token::CharLtrl(char_ltrl),
-        "StringLtrl" => Token::StringLtrl(str_ltrl),
+        "IntegerLtrl" => Token::IntegerLtrl(_),
+        "FloatLtrl" => Token::FloatLtrl(_),
+        "CharLtrl" => Token::CharLtrl(_),
+        "StringLtrl" => Token::StringLtrl(_),
         "MultiComment" => Token::MultiComment,
         "SingleComment" => Token::SingleComment,
-        "Identifier" => Token::Identifier(identifier),
+        "Identifier" => Token::Identifier(_),
     }
 }
 
@@ -199,7 +199,7 @@ Assignment: Assignment = {
     <l:LValue> "LeftArrow" <r:RValue> => Assignment::new(l, r)
 };
 LValue: LValue = {
-    <h:PrimaryExprPrime> <b:PostfixOp*> <t:PostfixOpPrime> => LValue::new(h, b, t)
+    <h:PrimaryExprPrime> <t:(<PostfixOp*> <PostfixOpPrime>)?> => LValue::new(h, t)
 };
 RValue: Expr = { <Expr> => <> };
 
