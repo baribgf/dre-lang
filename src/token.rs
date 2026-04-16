@@ -157,7 +157,7 @@ pub enum Token {
     #[regex(r"--.*?")]
     SingleComment,
 
-    #[regex(r"((?&alpha)|@)_?((?&alphanum)_?)*|_", |lex| bytes_to_string(lex.slice()))]
+    #[regex(r"((?&alpha)|@)_?((?&alphanum)_?)*", |lex| bytes_to_string(lex.slice()))]
     Identifier(String),
 }
 

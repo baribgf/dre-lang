@@ -6,7 +6,7 @@
 
 | Token             | Description
 |-------------------|-----------------------------------------------------|
-| Identifier        | Any string beginning with a letter or `@` followed by any number of letters and digits, with at most one underscore separating each, or a single underscore (placeholder).
+| Identifier        | Any string beginning with a letter or `@` followed by any number of letters and digits, with at most one underscore separating each.
 | Newline | `\n` character.
 | Multi-line comment  | A string starting and ending with `---`.
 | Single-line comment | A string starting with `--` and ending with newline.
