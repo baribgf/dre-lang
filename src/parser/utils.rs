@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::{ast::QualName, token::Token};
 
 pub fn splice<P>(h: P, t: Vec<P>) -> Vec<P> {
     let mut parts: Vec<P> = Vec::new();
@@ -7,7 +7,7 @@ pub fn splice<P>(h: P, t: Vec<P>) -> Vec<P> {
     parts
 }
 
-pub fn extract_ids(h: Token, t: Vec<Token>) -> Vec<String> {
+pub fn extract_ids(h: Token, t: Vec<Token>) -> QualName {
     let ids: Vec<Token> = splice(h, t);
-    ids.iter().map(|id| id.identifier()).collect()
+    QualName::new(ids.iter().map(|id| id.identifier()).collect())
 }

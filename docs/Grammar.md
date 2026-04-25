@@ -27,7 +27,7 @@ Construct -> EnumDef
 ProtImpos -> <Is> QualName (<SpacedComma> QualName)*
 
 EnumDef -> TypeDeclHead <Enum> <Newline> <Begin> <Newline>+ EnumBody <End>
-EnumBody -> (<Identifier> (<Eq> <IntegerLtrl>)? <Newline>+)*
+EnumBody -> (<Identifier> <Newline>+)*
 
 StructDef -> TypeDeclHead <Struct> ProtImpos? <Newline> <Begin> <Newline>+ StructBody <End>
 StructBody -> (StructMember <Newline>+)*

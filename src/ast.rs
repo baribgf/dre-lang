@@ -1,9 +1,35 @@
 #![allow(dead_code)]
 
-pub type QualName = Vec<String>;
+use std::fmt::Display;
+use std::rc::Rc;
+
+use crate::{
+    symtbl::SymType,
+    utils::{Loc, Span},
+};
+
 pub type FuncArg = Expr;
 pub type Call = Vec<FuncArg>;
 pub type Index = Expr;
+
+#[derive(Debug, Eq, Hash, PartialEq)]
+pub struct QualName(Vec<String>);
+
+impl QualName {
+    pub fn new(parts: Vec<String>) -> Self {
+        Self(parts)
+    }
+
+    pub fn from_single(name: String) -> Self {
+        Self(vec![name])
+    }
+}
+
+impl Display for QualName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.join("::"))
+    }
+}
 
 #[derive(Debug)]
 pub enum Type {
@@ -11,13 +37,30 @@ pub enum Type {
     ArrayOf(Option<i32>, Box<Type>),
 }
 
+impl Type {
+    /// @TODO: implement actual type compatibility logic
+    pub fn compatible_with(&self, expr: &Expr) -> bool {
+        true
+    }
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Type::QualName(n1), Type::QualName(n2)) => n1 == n2,
+            (Type::ArrayOf(s1, t1), Type::ArrayOf(s2, t2)) => s1 == s2 && t1 == t2,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct VarDecl {
-    is_public: bool,
-    is_const: bool,
-    name: String,
-    type_: Type,
-    value: Option<Expr>,
+    pub is_public: bool,
+    pub is_const: bool,
+    pub name: String,
+    pub type_: Type,
+    pub value: Option<Expr>,
 }
 
 impl VarDecl {
@@ -39,31 +82,65 @@ impl VarDecl {
 }
 
 #[derive(Debug)]
-pub enum Construct {
+pub enum ConstructKind {
     EnumDef(EnumDef),
     StructDef(StructDef),
-    ProtDef(ProtDef),
+    ProtDef(Rc<ProtDef>),
     FuncDef(FuncDef),
     VarDecl(VarDecl),
 }
 
+impl ConstructKind {}
+
+#[derive(Debug)]
+pub struct Construct {
+    pub kind: ConstructKind,
+    pub loc: Loc,
+}
+
+impl Construct {
+    pub fn new(kind: ConstructKind, loc: Loc) -> Self {
+        Self { kind, loc }
+    }
+
+    pub fn name(&self) -> &String {
+        match &self.kind {
+            ConstructKind::EnumDef(def) => &def.name,
+            ConstructKind::StructDef(def) => &def.name,
+            ConstructKind::ProtDef(def) => &def.name,
+            ConstructKind::FuncDef(def) => &def.decl.name,
+            ConstructKind::VarDecl(decl) => &decl.name,
+        }
+    }
+
+    pub fn to_sym_type(&self) -> SymType {
+        match &self.kind {
+            ConstructKind::EnumDef(_) => SymType::Enum,
+            ConstructKind::StructDef(_) => SymType::Struct,
+            ConstructKind::ProtDef(prot_def) => SymType::Prot(prot_def.clone()),
+            ConstructKind::FuncDef(_) => SymType::Func,
+            ConstructKind::VarDecl(_) => SymType::Var,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct EnumElem {
-    name: String,
-    value: Option<i32>,
+    pub name: String,
+    pub span: Span,
 }
 
 impl EnumElem {
-    pub fn new(name: String, value: Option<i32>) -> Self {
-        Self { name, value }
+    pub fn new(name: String, span: Span) -> Self {
+        Self { name, span }
     }
 }
 
 #[derive(Debug)]
 pub struct EnumDef {
-    is_public: bool,
-    name: String,
-    elements: Vec<EnumElem>,
+    pub is_public: bool,
+    pub name: String,
+    pub elements: Vec<EnumElem>,
 }
 
 impl EnumDef {
@@ -77,17 +154,36 @@ impl EnumDef {
 }
 
 #[derive(Debug)]
-pub enum StructMember {
+pub enum StructMemberKind {
     VarDecl(VarDecl),
     FuncDef(FuncDef),
 }
 
 #[derive(Debug)]
+pub struct StructMember {
+    pub kind: StructMemberKind,
+    pub span: Span,
+}
+
+impl StructMember {
+    pub fn new(kind: StructMemberKind, span: Span) -> Self {
+        Self { kind, span }
+    }
+
+    pub fn name(&self) -> &String {
+        match &self.kind {
+            StructMemberKind::VarDecl(decl) => &decl.name,
+            StructMemberKind::FuncDef(def) => &def.decl.name,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct StructDef {
-    is_public: bool,
-    name: String,
-    impos: Vec<QualName>,
-    members: Vec<StructMember>,
+    pub is_public: bool,
+    pub name: String,
+    pub impos: Vec<QualName>,
+    pub members: Vec<StructMember>,
 }
 
 impl StructDef {
@@ -108,8 +204,8 @@ impl StructDef {
 
 #[derive(Debug)]
 pub struct FuncParam {
-    name: String,
-    type_: Type,
+    pub name: String,
+    pub type_: Type,
 }
 
 impl FuncParam {
@@ -120,27 +216,35 @@ impl FuncParam {
 
 #[derive(Debug)]
 pub struct FuncDecl {
-    is_public: bool,
-    name: String,
-    params: Vec<FuncParam>,
-    ret_type: Type,
+    pub is_public: bool,
+    pub name: String,
+    pub params: Vec<FuncParam>,
+    pub ret_type: Type,
+    pub span: Span,
 }
 
 impl FuncDecl {
-    pub fn new(is_public: bool, name: String, params: Vec<FuncParam>, ret_type: Type) -> Self {
+    pub fn new(
+        is_public: bool,
+        name: String,
+        params: Vec<FuncParam>,
+        ret_type: Type,
+        span: Span,
+    ) -> Self {
         Self {
             is_public,
             name,
             params,
             ret_type,
+            span,
         }
     }
 }
 
 #[derive(Debug)]
 pub struct FuncDef {
-    decl: FuncDecl,
-    stmts: Vec<Statement>,
+    pub decl: FuncDecl,
+    pub stmts: Vec<Statement>,
 }
 
 impl FuncDef {
@@ -151,22 +255,26 @@ impl FuncDef {
 
 #[derive(Debug)]
 pub struct ProtMember {
-    decl: FuncDecl,
-    body: Option<Vec<Statement>>,
+    pub decl: FuncDecl,
+    pub body: Option<Vec<Statement>>,
 }
 
 impl ProtMember {
     pub fn new(decl: FuncDecl, body: Option<Vec<Statement>>) -> Self {
         Self { decl, body }
     }
+
+    pub fn name(&self) -> &String {
+        &self.decl.name
+    }
 }
 
 #[derive(Debug)]
 pub struct ProtDef {
-    is_public: bool,
-    name: String,
-    impos: Vec<QualName>,
-    members: Vec<ProtMember>,
+    pub is_public: bool,
+    pub name: String,
+    pub impos: Vec<QualName>,
+    pub members: Vec<ProtMember>,
 }
 
 impl ProtDef {
@@ -410,12 +518,12 @@ pub type MulFact = (MulOp, UnaryExpr);
 
 #[derive(Debug)]
 pub struct UseStmt {
-    local: bool,
-    path: Vec<String>,
+    pub local: bool,
+    pub path: QualName,
 }
 
 impl UseStmt {
-    pub fn new(local: bool, path: Vec<String>) -> Self {
+    pub fn new(local: bool, path: QualName) -> Self {
         Self { local, path }
     }
 }
@@ -424,8 +532,8 @@ pub type Header = Vec<UseStmt>;
 
 #[derive(Debug)]
 pub struct Program {
-    header: Header,
-    constrs: Vec<Construct>,
+    pub header: Header,
+    pub constrs: Vec<Construct>,
 }
 
 impl Program {

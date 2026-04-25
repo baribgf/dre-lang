@@ -1,12 +1,13 @@
 use crate::token::Token;
 use crate::ast::*;
+use crate::utils::{Loc, Span};
 
 use super::utils::*;
 
 grammar;
 
 extern {
-    type Location = usize;
+    type Location = Loc;
     type Error = String;
 
     enum Token {
@@ -105,8 +106,8 @@ Type: Type = {
     <q:QualName> => Type::QualName(q),
     "OpenBracket" <id:"IntegerLtrl"?> <t:Type> "ClosBracket" => Type::ArrayOf(id.map(|inner| inner.int_ltrl()), t.into()),
 };
-TypeDeclHead: (bool, String) = {
-    <p:DeclHead> <id:"Identifier"> "SpacedColon" => (p, id.identifier())
+TypeDeclHead: (bool, String, Span) = {
+    <p:DeclHead> <start:@L> <id:"Identifier"> <end:@R> "SpacedColon" => (p, id.identifier(), (start, end))
 };
 
 Constructs: Vec<Construct> = {
@@ -114,11 +115,11 @@ Constructs: Vec<Construct> = {
 };
 
 Construct: Construct = {
-    <x:EnumDef> => Construct::EnumDef(x),
-    <x:StructDef> => Construct::StructDef(x),
-    <x:ProtDef> => Construct::ProtDef(x),
-    <x:FuncDef> => Construct::FuncDef(x),
-    <x:VarDecl> => Construct::VarDecl(x),
+    <loc:@L> <x:EnumDef> => Construct::new(ConstructKind::EnumDef(x), loc),
+    <loc:@L> <x:StructDef> => Construct::new(ConstructKind::StructDef(x), loc),
+    <loc:@L> <x:ProtDef> => Construct::new(ConstructKind::ProtDef(x.into()), loc),
+    <loc:@L> <x:FuncDef> => Construct::new(ConstructKind::FuncDef(x), loc),
+    <loc:@L> <x:VarDecl> => Construct::new(ConstructKind::VarDecl(x), loc),
 };
 
 ProtImpos: Vec<QualName> = {
@@ -131,7 +132,9 @@ EnumDef: EnumDef = {
 };
 EnumBody: Vec<EnumElem> = { <e:(<EnumElem> "Newline"+)*> => e };
 EnumElem: EnumElem = {
-    <n:"Identifier"> <v:("Eq" <"IntegerLtrl">)?> => EnumElem::new(n.identifier(), v.map(|inner| inner.int_ltrl()))
+    <start:@L> <n:"Identifier"> <end:@R> => {
+        EnumElem::new(n.identifier(), (start, end))
+    }
 };
 
 StructDef: StructDef = {
@@ -142,8 +145,8 @@ StructBody: Vec<StructMember> = {
     <m:(<StructMember> "Newline"+)*> => m
 };
 StructMember: StructMember = {
-    <v:VarDecl> => StructMember::VarDecl(v),
-    <f:FuncDef> => StructMember::FuncDef(f),
+    <loc:@L> <f:FuncDef> => StructMember::new(StructMemberKind::FuncDef(f), (loc, loc)),
+    <loc:@L> <v:VarDecl> => StructMember::new(StructMemberKind::VarDecl(v), (loc, loc)),
 };
 
 ProtDef: ProtDef = {
@@ -159,7 +162,13 @@ FuncDef: FuncDef = {
 };
 FuncDecl: FuncDecl = {
     <h:TypeDeclHead> "Func" "OpenParen" <p:FuncParams?> "ClosParen"
-    "RightArrow" <t:Type> => FuncDecl::new(h.0, h.1, p.unwrap_or(Vec::new()), t)
+    "RightArrow" <t:Type> => FuncDecl::new(
+        h.0,
+        h.1,
+        p.unwrap_or(Vec::new()),
+        t,
+        h.2
+    )
 };
 FuncBlock: Vec<Statement> = {
     "Begin" "Newline"+ <s:Statements> "End" => s
