@@ -151,7 +151,7 @@ pub enum Token {
     #[regex(r"“[^”]*?”", |lex| bytes_to_string(lex.slice()))]
     StringLtrl(String),
 
-    #[regex(r"(?s)---[^(---)]*?---")]
+    #[regex(r"(?s)---([^\-]|-[^\-]|--[^\-])*---")]
     MultiComment,
 
     #[regex(r"--.*?")]
