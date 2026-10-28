@@ -193,19 +193,19 @@ Statements: Vec<Statement> = {
 };
 
 Statement: Statement = {
-    <x:VarDecl> => Statement::VarDecl(x),
-    <x:FuncDef> => Statement::FuncDef(x),
-    <x:Assignment> => Statement::Assignment(x),
-    <x:UntilLoop> => Statement::UntilLoop(x),
-    <x:WhileLoop> => Statement::WhileLoop(x),
-    <x:ForLoop> => Statement::ForLoop(x),
-    <x:IfElse> => Statement::IfElse(x),
-    <x:FuncCall> => Statement::FuncCall(x),
-    <x:Return> => Statement::Return(x),
-    "Break" => Statement::Break,
-    "Skip" => Statement::Skip,
-    <x:Increment> => Statement::Increment(x),
-    <x:Decrement> => Statement::Decrement(x),
+    <start:@L> <x:VarDecl> <end:@R> => Statement::new(StatementKind::VarDecl(x), (start, end)),
+    <start:@L> <x:FuncDef> <end:@R> => Statement::new(StatementKind::FuncDef(x), (start, end)),
+    <start:@L> <x:Assignment> <end:@R> => Statement::new(StatementKind::Assignment(x), (start, end)),
+    <start:@L> <x:UntilLoop> <end:@R> => Statement::new(StatementKind::UntilLoop(x), (start, end)),
+    <start:@L> <x:WhileLoop> <end:@R> => Statement::new(StatementKind::WhileLoop(x), (start, end)),
+    <start:@L> <x:ForLoop> <end:@R> => Statement::new(StatementKind::ForLoop(x), (start, end)),
+    <start:@L> <x:IfElse> <end:@R> => Statement::new(StatementKind::IfElse(x), (start, end)),
+    <start:@L> <x:FuncCall> <end:@R> => Statement::new(StatementKind::FuncCall(x), (start, end)),
+    <start:@L> <x:Return> <end:@R> => Statement::new(StatementKind::Return(x), (start, end)),
+    <start:@L> "Break" <end:@R> => Statement::new(StatementKind::Break, (start, end)),
+    <start:@L> "Skip" <end:@R> => Statement::new(StatementKind::Skip, (start, end)),
+    <start:@L> <x:Increment> <end:@R> => Statement::new(StatementKind::Increment(x), (start, end)),
+    <start:@L> <x:Decrement> <end:@R> => Statement::new(StatementKind::Decrement(x), (start, end)),
 };
 
 FuncCall: FuncCall = {

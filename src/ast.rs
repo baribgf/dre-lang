@@ -12,7 +12,6 @@ pub type FuncArg = Expr;
 pub type Call = Vec<FuncArg>;
 pub type Index = Expr;
 
-/// @TODO: convert to a type alias.
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct QualName(Vec<String>);
 
@@ -309,7 +308,7 @@ impl ProtDef {
 }
 
 #[derive(Debug)]
-pub enum Statement {
+pub enum StatementKind {
     VarDecl(VarDecl),
     FuncDef(FuncDef),
     Assignment(Assignment),
@@ -323,6 +322,18 @@ pub enum Statement {
     Skip,
     Increment(LValue),
     Decrement(LValue),
+}
+
+#[derive(Debug)]
+pub struct Statement {
+    pub kind: StatementKind,
+    pub span: Span,
+}
+
+impl Statement {
+    pub fn new(kind: StatementKind, span: Span) -> Self {
+        Self { kind, span }
+    }
 }
 
 #[derive(Debug)]
