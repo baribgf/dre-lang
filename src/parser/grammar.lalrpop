@@ -95,7 +95,7 @@ QualName: QualName = {
 
 DeclHead: bool = { "Let" <p:"Pub"?> => p.is_some() };
 VarDecl: VarDecl = {
-    <h:DeclHead> <b:VarDeclBody> => VarDecl::new(h, b.0, b.1, b.2, b.3)
+    <loc:@L> <h:DeclHead> <b:VarDeclBody> => VarDecl::new(h, b.0, b.1, b.2, b.3, loc)
 };
 VarDeclBody: (bool, String, Type, Option<Expr>) = {
     <id:"Identifier"> "SpacedColon" <t:Type> <v:("LeftArrow" <Expr>)?> => (false, id.identifier(), t, v),
@@ -154,7 +154,15 @@ ProtDef: ProtDef = {
     "Begin" "Newline"+ <b:ProtBody> "End" => ProtDef::new(h.0, h.1, pi.unwrap_or(Vec::new()), b)
 };
 ProtBody: Vec<ProtMember> = {
-    <m:(<FuncDecl> <("Newline" <FuncBlock>)?> "Newline"+)*> => m.into_iter().map(|item| ProtMember::new(item.0, item.1)).collect()
+    <m:(<FuncDecl> <("Newline" <FuncBlock>)?> "Newline"+)*> => {
+        m.into_iter().map(|item| {
+            if let Some(body) = item.1 {
+                ProtMember::Default(FuncDef::new(item.0, body))
+            } else {
+                ProtMember::Imposition(item.0)
+            }
+        }).collect()
+    }
 };
 
 FuncDef: FuncDef = {

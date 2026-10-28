@@ -1,3 +1,8 @@
+#![allow(dead_code)]
+
+pub type Loc = (usize, usize);
+pub type Span = (Loc, Loc);
+
 pub fn bytes_to_string(bytes: &[u8]) -> String {
     unsafe { String::from_utf8_unchecked(bytes.to_vec()) }
 }

@@ -6,6 +6,8 @@ mod report;
 mod token;
 mod utils;
 
+use std::{fs::File, path::Path};
+
 use clap::Parser as ArgParser;
 use lalrpop_util::ParseError;
 use memmap2::Mmap;
@@ -55,17 +57,42 @@ fn main() {
                 match res {
                     Ok(_) => println!("Parsing successful!"),
                     Err(err) => match err {
-                        ParseError::UnrecognizedToken { token, expected } => {
-                            let (line, _, col) = token;
-                            error(
-                                &format!("Syntax error, expected: {{{}}}", expected.join(", ")),
-                                &get_nth_line(source, line),
-                                source_path,
-                                line,
-                                col,
+                        ParseError::InvalidToken { location } => {
+                            panic!("Syntax error: invalid token at location {:?}", location);
+                        }
+                        ParseError::UnrecognizedEof { expected, location } => {
+                            panic!(
+                                "Syntax error: unrecognized EOF at location {:?}, expected: {}",
+                                location,
+                                expected.join(", ")
                             );
                         }
-                        _ => unimplemented!(),
+                        ParseError::UnrecognizedToken { token, expected } => {
+                            let (start, _, end) = token;
+                            error(
+                                &format!(
+                                    "Syntax error: unrecognized token, expected: {{{}}}",
+                                    expected.join(", ")
+                                ),
+                                &get_nth_line(source, start.0),
+                                source_path,
+                                start,
+                                end,
+                            );
+                        }
+                        ParseError::ExtraToken { token } => {
+                            let (start, _, end) = token;
+                            error(
+                                "Syntax error: extra token",
+                                &get_nth_line(source, start.0),
+                                source_path,
+                                start,
+                                end,
+                            );
+                        }
+                        ParseError::User { error: inner } => {
+                            panic!("Parser error: {}", inner);
+                        }
                     },
                 }
             }

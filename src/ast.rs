@@ -12,7 +12,8 @@ pub type FuncArg = Expr;
 pub type Call = Vec<FuncArg>;
 pub type Index = Expr;
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+/// @TODO: convert to a type alias.
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct QualName(Vec<String>);
 
 impl QualName {
@@ -38,9 +39,8 @@ pub enum Type {
 }
 
 impl Type {
-    /// @TODO: implement actual type compatibility logic
-    pub fn compatible_with(&self, expr: &Expr) -> bool {
-        true
+    pub fn is_none(&self) -> bool {
+        matches!(self, Type::QualName(qn) if qn.0 == ["None"])
     }
 }
 
@@ -61,6 +61,7 @@ pub struct VarDecl {
     pub name: String,
     pub type_: Type,
     pub value: Option<Expr>,
+    pub loc: Loc,
 }
 
 impl VarDecl {
@@ -70,6 +71,7 @@ impl VarDecl {
         name: String,
         type_: Type,
         value: Option<Expr>,
+        loc: Loc,
     ) -> Self {
         Self {
             is_public,
@@ -77,6 +79,7 @@ impl VarDecl {
             name,
             type_,
             value,
+            loc,
         }
     }
 }
@@ -254,18 +257,24 @@ impl FuncDef {
 }
 
 #[derive(Debug)]
-pub struct ProtMember {
-    pub decl: FuncDecl,
-    pub body: Option<Vec<Statement>>,
+pub enum ProtMember {
+    Imposition(FuncDecl),
+    Default(FuncDef),
 }
 
 impl ProtMember {
-    pub fn new(decl: FuncDecl, body: Option<Vec<Statement>>) -> Self {
-        Self { decl, body }
+    pub fn name(&self) -> &String {
+        match self {
+            ProtMember::Imposition(imp) => &imp.name,
+            ProtMember::Default(def) => &def.decl.name,
+        }
     }
 
-    pub fn name(&self) -> &String {
-        &self.decl.name
+    pub fn decl(&self) -> &FuncDecl {
+        match self {
+            ProtMember::Imposition(imp) => imp,
+            ProtMember::Default(def) => &def.decl,
+        }
     }
 }
 
@@ -290,6 +299,12 @@ impl ProtDef {
             impos,
             members,
         }
+    }
+
+    pub fn qualname(&self) -> QualName {
+        // @TODO: expand the name to a fully qualified name based
+        // on the current module path
+        QualName::from_single(self.name.clone())
     }
 }
 
