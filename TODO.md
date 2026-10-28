@@ -2,6 +2,7 @@
 - Adding support for type aliasing.
 
 # Later
+- Introduce parametrized typing into the language.
 - Introduce a `match-case` statement to the language.
 - Adding native support for memory and concurrency safety.
 - Trying to describe the language using a `Parsing Expression Grammar` (`PEG`).
