@@ -1,0 +1,23 @@
+let bump: func (x: Int) -> Int
+begin
+    let v: Int <- x
+
+    for i in 0..3 do
+        inc v
+    end
+
+    until v >= 5 do
+        v <- v + 1
+    end
+
+    while v <> 7 do
+        v <- v + 1
+    end
+
+    return v
+end
+
+let main: func () -> Int
+begin
+    return bump(0)
+end

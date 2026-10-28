@@ -1,0 +1,24 @@
+let Box: struct
+begin
+    let items: [2 Int]
+
+    let get: func (i: Int) -> Int
+    begin
+        return self.items[i]
+    end
+end
+
+let makeBox: func () -> Box
+begin
+    let box: Box
+    box.items[0] <- 11
+    box.items[1] <- 22
+    return box
+end
+
+let main: func () -> Int
+begin
+    let b: Box <- makeBox()
+    Module::log(b.get(0), b.get(1))
+    return 0
+end

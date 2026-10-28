@@ -1,0 +1,31 @@
+use .std::io
+
+let pub Status: enum
+begin
+    Ok
+    Error
+end
+
+let pub Worker: prot
+begin
+    let run: func () -> Int
+end
+
+let pub Task: struct is Worker
+begin
+    let id: Int
+
+    let run: func () -> Int
+    begin
+        return self.id
+    end
+end
+
+let const DEFAULT_ID: Int = 9
+
+let main: func () -> Int
+begin
+    let t: Task
+    t.id <- DEFAULT_ID
+    return t.run()
+end

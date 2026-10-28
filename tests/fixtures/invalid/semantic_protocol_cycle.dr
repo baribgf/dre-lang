@@ -1,0 +1,9 @@
+let A: prot is B
+begin
+    let a: func () -> Int
+end
+
+let B: prot is A
+begin
+    let b: func () -> Int
+end

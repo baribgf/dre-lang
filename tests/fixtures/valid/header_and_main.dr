@@ -1,0 +1,13 @@
+use io::fmt
+use .core::mem
+
+let const VERSION: Int = 1
+
+let main: func () -> Int
+begin
+    let x: Int <- 0
+    while x < 3 do
+        x <- x + 1
+    end
+    return x
+end

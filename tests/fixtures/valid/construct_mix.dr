@@ -1,0 +1,28 @@
+let Color: enum
+begin
+    Red
+    Green
+    Blue
+end
+
+let Drawable: prot
+begin
+    let draw: func () -> Int
+end
+
+let Point: struct is Drawable
+begin
+    let x: Int
+    let y: Int
+
+    let draw: func () -> Int
+    begin
+        return self.x + self.y
+    end
+end
+
+let main: func () -> Int
+begin
+    let p: Point
+    return 0
+end

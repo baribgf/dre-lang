@@ -1,0 +1,13 @@
+let main: func () -> Int
+begin
+    let a: Int <- 1 + 2 * 3
+    let b: Int <- (a << 1) | 4
+    let c: Int <- b & 7
+    let ok: Bool <- not false and true or false
+
+    if ok then
+        return c
+    else
+        return 0
+    end
+end
