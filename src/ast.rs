@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::rc::Rc;
 
 use crate::{
-    symtbl::SymType,
+    symtbl::{SymTable, SymType},
     utils::{Loc, Span},
 };
 
@@ -91,8 +91,6 @@ pub enum ConstructKind {
     FuncDef(FuncDef),
     VarDecl(VarDecl),
 }
-
-impl ConstructKind {}
 
 #[derive(Debug)]
 pub struct Construct {
@@ -186,6 +184,7 @@ pub struct StructDef {
     pub name: String,
     pub impos: Vec<QualName>,
     pub members: Vec<StructMember>,
+    pub sym_table: SymTable,
 }
 
 impl StructDef {
@@ -200,6 +199,7 @@ impl StructDef {
             name,
             impos,
             members,
+            sym_table: SymTable::new(),
         }
     }
 }
@@ -247,11 +247,16 @@ impl FuncDecl {
 pub struct FuncDef {
     pub decl: FuncDecl,
     pub stmts: Vec<Statement>,
+    pub sym_table: SymTable,
 }
 
 impl FuncDef {
     pub fn new(decl: FuncDecl, stmts: Vec<Statement>) -> Self {
-        Self { decl, stmts }
+        Self {
+            decl,
+            stmts,
+            sym_table: SymTable::new(),
+        }
     }
 }
 
@@ -283,6 +288,7 @@ pub struct ProtDef {
     pub name: String,
     pub impos: Vec<QualName>,
     pub members: Vec<ProtMember>,
+    pub sym_table: SymTable,
 }
 
 impl ProtDef {
@@ -297,6 +303,7 @@ impl ProtDef {
             name,
             impos,
             members,
+            sym_table: SymTable::new(),
         }
     }
 
@@ -380,9 +387,10 @@ impl LValue {
 
 #[derive(Debug)]
 pub struct CondLoop {
-    positive: bool,
-    condition: Expr,
-    body: Vec<Statement>,
+    pub positive: bool,
+    pub condition: Expr,
+    pub body: Vec<Statement>,
+    pub sym_table: SymTable,
 }
 
 impl CondLoop {
@@ -391,15 +399,17 @@ impl CondLoop {
             positive,
             condition,
             body,
+            sym_table: SymTable::new(),
         }
     }
 }
 
 #[derive(Debug)]
 pub struct ForLoop {
-    iter_var: String,
-    range: Expr,
-    body: Vec<Statement>,
+    pub iter_var: String,
+    pub range: Expr,
+    pub body: Vec<Statement>,
+    pub sym_table: SymTable,
 }
 
 impl ForLoop {
@@ -408,31 +418,52 @@ impl ForLoop {
             iter_var,
             range,
             body,
+            sym_table: SymTable::new(),
         }
     }
 }
 
 #[derive(Debug)]
 pub struct If {
-    condition: Expr,
-    body: Vec<Statement>,
+    pub condition: Expr,
+    pub body: Vec<Statement>,
+    pub sym_table: SymTable,
 }
 
 impl If {
     pub fn new(condition: Expr, body: Vec<Statement>) -> Self {
-        Self { condition, body }
+        Self {
+            condition,
+            body,
+            sym_table: SymTable::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Else {
+    pub body: Vec<Statement>,
+    pub sym_table: SymTable,
+}
+
+impl Else {
+    pub fn new(body: Vec<Statement>) -> Self {
+        Self {
+            body,
+            sym_table: SymTable::new(),
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct IfElse {
-    if_part: If,
-    else_if_parts: Vec<If>,
-    else_part: Vec<Statement>,
+    pub if_part: If,
+    pub else_if_parts: Vec<If>,
+    pub else_part: Option<Else>,
 }
 
 impl IfElse {
-    pub fn new(if_part: If, else_if_parts: Vec<If>, else_part: Vec<Statement>) -> Self {
+    pub fn new(if_part: If, else_if_parts: Vec<If>, else_part: Option<Else>) -> Self {
         Self {
             if_part,
             else_if_parts,
@@ -560,10 +591,15 @@ pub type Header = Vec<UseStmt>;
 pub struct Program {
     pub header: Header,
     pub constrs: Vec<Construct>,
+    pub sym_table: SymTable,
 }
 
 impl Program {
     pub fn new(header: Header, constrs: Vec<Construct>) -> Self {
-        Self { header, constrs }
+        Self {
+            header,
+            constrs,
+            sym_table: SymTable::new_with_builtins(),
+        }
     }
 }

@@ -61,8 +61,7 @@ fn main() {
                         eprintln!("Parsing successful!");
                         // println!("{:#?}", ast);
 
-                        let mut sym_table = symtbl::new_with_builtins();
-                        match check_program(&ast, &mut sym_table) {
+                        match check_program(&ast) {
                             Ok(_) => (),
                             Err(err) => error(
                                 &err.msg,

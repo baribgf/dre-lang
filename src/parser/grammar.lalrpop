@@ -234,13 +234,13 @@ ForLoop: ForLoop = {
 DoBlock: Vec<Statement> = { "Do" "Newline"+ <Statements> "End" => <> };
 
 IfElse: IfElse = {
-    <if_:If> <ei:ElseIf*> <e:Else?> "End" => IfElse::new(if_, ei, e.unwrap_or(Vec::new()))
+    <if_:If> <ei:ElseIf*> <e:Else?> "End" => IfElse::new(if_, ei, e)
 };
 If: If = {
     "If" <c:Expr> "Then" "Newline"+ <b:Statements> => If::new(c, b)
 };
 ElseIf: If = { "Else" <If> => <> };
-Else: Vec<Statement> = { "Else" "Newline"+ <Statements> => <> };
+Else: Else = { "Else" "Newline"+ <Statements> => Else::new(<>) };
 
 FuncArgs: Vec<FuncArg> = {
     <h:FuncArg> <t:("SpacedComma" <FuncArg>)*> => splice(h, t)
