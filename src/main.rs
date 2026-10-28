@@ -1,8 +1,11 @@
 mod ast;
 mod buffer;
+mod core;
 mod lexer;
 mod parser;
 mod report;
+mod semantic;
+mod symtbl;
 mod token;
 mod utils;
 
@@ -11,11 +14,11 @@ use std::{fs::File, path::Path};
 use clap::Parser as ArgParser;
 use lalrpop_util::ParseError;
 use memmap2::Mmap;
-use std::{fs::File, path::Path};
 
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::report::{error, fatal};
+use crate::semantic::check_program;
 use crate::utils::get_nth_line;
 
 /// The `Dre` language compiler
@@ -38,7 +41,7 @@ fn main() {
             panic!("Source path: '{}', does not exist.", source_path);
         }
         if !path.is_file() {
-            panic!("Source path: '{}', is not a file", source_path);
+            panic!("Source path: '{}', is not a file.", source_path);
         }
 
         let source_file = File::open(path).unwrap_or_else(|err| {
@@ -53,9 +56,24 @@ fn main() {
                     println!("{:?}", token.unwrap().1);
                 } */
                 let parser = Parser::new();
-                let res = parser.parse(lexer);
-                match res {
-                    Ok(_) => println!("Parsing successful!"),
+                match parser.parse(lexer) {
+                    Ok(ast) => {
+                        eprintln!("Parsing successful!");
+                        // println!("{:#?}", ast);
+
+                        let mut sym_table = symtbl::new_with_builtins();
+                        match check_program(&ast, &mut sym_table) {
+                            Ok(_) => (),
+                            Err(err) => error(
+                                &err.msg,
+                                &get_nth_line(source, err.span.0.0),
+                                source_path,
+                                err.span.0,
+                                err.span.1,
+                            ),
+                        }
+                        eprintln!("Semantic analysis successful!");
+                    }
                     Err(err) => match err {
                         ParseError::InvalidToken { location } => {
                             panic!("Syntax error: invalid token at location {:?}", location);
