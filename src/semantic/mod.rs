@@ -1,6 +1,6 @@
 pub mod utils;
 
-use std::collections::HashSet;
+use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 use crate::{
     ast::*,
@@ -19,6 +19,7 @@ pub enum SemanticErrorKind {
     UnknownType,
     InvalidType,
     FuncParamNameConflict,
+    InvalidStmt,
 }
 
 pub struct SemanticError {
@@ -29,58 +30,9 @@ pub struct SemanticError {
 }
 
 /// Check the main program for semantic errors.
-pub fn check_program(ast: &Program, sym_table: &mut SymTable) -> Result<(), SemanticError> {
-    // First pass: populate symbol table and check for redefinitions
-    for constr in ast.constrs.iter() {
-        // check for redefinition of constructs
-        if let Some(_) = sym_table.insert(
-            QualName::from_single(constr.name().clone()),
-            constr.to_sym_type(),
-        ) {
-            return Err(SemanticError {
-                kind: SemanticErrorKind::Redefinition,
-                msg: "Semantic error: redefinition isn't allowed".into(),
-                span: (constr.loc, constr.loc),
-            });
-        }
-    }
-
-    // Second pass: validate protocol graphs and members before any
-    // conformance checks
-    for constr in ast.constrs.iter() {
-        if let ConstructKind::ProtDef(prot_def) = &constr.kind {
-            let mut visited: HashSet<QualName> = HashSet::new();
-            let mut visiting: HashSet<QualName> = HashSet::new();
-
-            check_protocol_imposition_cycle(
-                &prot_def.qualname(),
-                sym_table,
-                constr.loc,
-                &mut visiting,
-                &mut visited,
-            )?;
-
-            // handle duplicate protocol members, and check function members
-            let mut seen_members = HashSet::new();
-            for member in prot_def.members.iter() {
-                if !seen_members.insert(&member.decl().name) {
-                    return Err(SemanticError {
-                        kind: SemanticErrorKind::ProtMemberNameConflict,
-                        msg: "Semantic error: protocol member name used".into(),
-                        span: member.decl().span,
-                    });
-                }
-
-                match member {
-                    ProtMember::Imposition(func_impo) => check_func_decl(func_impo)?,
-                    ProtMember::Default(func_def) => check_func_def(func_def, sym_table)?,
-                }
-            }
-        }
-    }
-
-    // Third pass: check for semantic errors within non-protocol constructs
-    for constr in ast.constrs.iter() {
+pub fn check_program(program: &Program) -> Result<(), SemanticError> {
+    // 3rd pass: check for semantic errors within non-protocol constructs
+    for constr in program.constrs.iter() {
         match &constr.kind {
             ConstructKind::EnumDef(enum_def) => {
                 // handle duplicate enum elements
@@ -108,21 +60,23 @@ pub fn check_program(ast: &Program, sym_table: &mut SymTable) -> Result<(), Sema
                     }
 
                     match &member.kind {
-                        StructMemberKind::VarDecl(var_decl) => check_var_decl(var_decl, sym_table)?,
-                        StructMemberKind::FuncDef(func_def) => check_func_def(func_def, sym_table)?,
+                        StructMemberKind::VarDecl(var_decl) => {
+                            check_var_decl(var_decl, program.sym_table.clone())?
+                        }
+                        StructMemberKind::FuncDef(func_def) => check_func_def(func_def)?,
+                        _ => {}
                     }
 
                     // check function members
                     if let StructMemberKind::FuncDef(func_def) = &member.kind {
-                        check_func_def(func_def, sym_table)?;
+                        check_func_def(func_def)?;
                     }
                 }
 
                 // check protocol conformance
                 let mut prots_queue: Vec<QualName> =
-                    collect_unique_impos(&struct_def.impos, constr.loc)?
+                    collect_unique_impos(struct_def.impos.clone(), constr.loc)?
                         .into_iter()
-                        .cloned()
                         .collect();
                 let mut visited_prots: HashSet<QualName> = HashSet::new();
                 while let Some(prot) = prots_queue.pop() {
@@ -130,8 +84,11 @@ pub fn check_program(ast: &Program, sym_table: &mut SymTable) -> Result<(), Sema
                         continue;
                     }
 
-                    if let Some(SymType::Prot(prot_def)) = sym_table.get(&prot) {
-                        if !struct_conforms_to_protocol(&struct_def, &prot_def) {
+                    let prot_sym_type_raw = program.sym_table.borrow().get(&prot);
+                    if let Some(prot_sym_type) = prot_sym_type_raw
+                        && let SymType::Prot(ref prot_def) = *prot_sym_type.borrow()
+                    {
+                        if !struct_conforms_to_protocol(&struct_def, prot_def.clone()) {
                             return Err(SemanticError {
                                 kind: SemanticErrorKind::ProtConformance,
                                 msg: format!(
@@ -145,9 +102,8 @@ pub fn check_program(ast: &Program, sym_table: &mut SymTable) -> Result<(), Sema
 
                         // add imposed protocols to the queue
                         prots_queue.extend(
-                            collect_unique_impos(&prot_def.impos, constr.loc)?
-                                .into_iter()
-                                .cloned(),
+                            collect_unique_impos(prot_def.borrow().impos.clone(), constr.loc)?
+                                .into_iter(),
                         );
                     } else {
                         return Err(SemanticError {
@@ -158,9 +114,32 @@ pub fn check_program(ast: &Program, sym_table: &mut SymTable) -> Result<(), Sema
                     }
                 }
             }
-            ConstructKind::FuncDef(func_def) => check_func_def(func_def, sym_table)?,
-            ConstructKind::VarDecl(var_decl) => check_var_decl(var_decl, sym_table)?,
-            _ => {}
+            ConstructKind::FuncDef(func_def) => check_func_def(func_def)?,
+            ConstructKind::VarDecl(var_decl) => {
+                check_var_decl(var_decl, program.sym_table.clone())?
+            }
+            ConstructKind::ProtDef(prot_def) => {
+                // handle duplicate protocol members, and check function members
+                let mut seen_members = HashSet::new();
+                for member in prot_def.borrow().members.iter() {
+                    if !seen_members.insert(member.decl().borrow().name.clone()) {
+                        return Err(SemanticError {
+                            kind: SemanticErrorKind::ProtMemberNameConflict,
+                            msg: "Semantic error: protocol member name used".into(),
+                            span: member.decl().borrow().span,
+                        });
+                    }
+
+                    match member {
+                        ProtMember::Imposition(func_impo) => {
+                            check_func_decl(&*func_impo.as_ref().borrow())?
+                        }
+                        ProtMember::Default(func_def) => {
+                            check_func_def(&*func_def.as_ref().borrow())?
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -169,8 +148,9 @@ pub fn check_program(ast: &Program, sym_table: &mut SymTable) -> Result<(), Sema
 
 /// Check if a struct conforms to a protocol by
 /// ensuring that all imposed members are implemented.
-fn struct_conforms_to_protocol(struct_def: &StructDef, prot_def: &ProtDef) -> bool {
-    let imposition_members = prot_def
+fn struct_conforms_to_protocol(struct_def: &StructDef, prot_def: Rc<RefCell<ProtDef>>) -> bool {
+    let binding = prot_def.borrow();
+    let imposition_members = binding
         .members
         .iter()
         .filter(|pm| matches!(pm, ProtMember::Imposition(_)));
@@ -183,7 +163,7 @@ fn struct_conforms_to_protocol(struct_def: &StructDef, prot_def: &ProtDef) -> bo
             }
         });
 
-        if !func_decls.any(|fd| compare_func_decls(fd, &pm.decl())) {
+        if !func_decls.any(|fd| compare_func_decls(&*fd.borrow(), &*pm.decl().borrow())) {
             return false;
         }
     }
@@ -193,7 +173,7 @@ fn struct_conforms_to_protocol(struct_def: &StructDef, prot_def: &ProtDef) -> bo
 /// Check for cycles in protocol imposition graph using DFS.
 fn check_protocol_imposition_cycle(
     current: &QualName,
-    sym_table: &SymTable,
+    sym_table: Rc<RefCell<SymTable>>,
     constr_loc: Loc,
     visiting: &mut HashSet<QualName>,
     visited: &mut HashSet<QualName>,
@@ -210,21 +190,25 @@ fn check_protocol_imposition_cycle(
         return Ok(());
     }
 
-    let prot_def = if let Some(SymType::Prot(prot_def)) = sym_table.get(current) {
-        prot_def
-    } else {
-        return Err(SemanticError {
-            kind: SemanticErrorKind::TypeMismatch,
-            msg: format!("Semantic error: no protocol '{}' found in scope", current).into(),
-            span: (constr_loc, constr_loc),
-        });
+    let prot_def = {
+        if let Some(sym_type) = sym_table.borrow().get(current)
+            && let SymType::Prot(ref prot_def) = *sym_type.borrow()
+        {
+            prot_def.clone()
+        } else {
+            return Err(SemanticError {
+                kind: SemanticErrorKind::TypeMismatch,
+                msg: format!("Semantic error: no protocol '{}' found in scope", current).into(),
+                span: (constr_loc, constr_loc),
+            });
+        }
     };
 
     visiting.insert(current.clone());
 
-    let impos = collect_unique_impos(&prot_def.impos, constr_loc)?;
+    let impos = collect_unique_impos(prot_def.borrow().impos.clone(), constr_loc)?;
     for imp in impos {
-        check_protocol_imposition_cycle(imp, sym_table, constr_loc, visiting, visited)?;
+        check_protocol_imposition_cycle(&imp, sym_table.clone(), constr_loc, visiting, visited)?;
     }
 
     visiting.remove(current);
@@ -233,10 +217,14 @@ fn check_protocol_imposition_cycle(
 }
 
 /// Check if a type is valid within the given symbol table.
-fn check_type_validity(type_: &Type, sym_table: &SymTable, loc: Loc) -> Result<(), SemanticError> {
+fn check_type_validity(
+    type_: &Type,
+    sym_table: Rc<RefCell<SymTable>>,
+    loc: Loc,
+) -> Result<(), SemanticError> {
     match type_ {
         Type::QualName(qn) => {
-            if sym_table.get(qn).is_none() {
+            if sym_table.borrow().get(qn).is_none() {
                 return Err(SemanticError {
                     kind: SemanticErrorKind::UnknownType,
                     msg: format!("Semantic error: unknown type '{}'", qn).into(),
@@ -269,7 +257,15 @@ fn check_type_validity(type_: &Type, sym_table: &SymTable, loc: Loc) -> Result<(
 }
 
 /// Check a variable declaration for semantic errors.
-fn check_var_decl(var_decl: &VarDecl, sym_table: &SymTable) -> Result<(), SemanticError> {
+///
+/// Variable declaration type is checked for presence within
+/// the symbol table `sym_table`. If an initialization expression
+/// is provided, its type is checked for compatibility with the
+/// declared type.
+fn check_var_decl(
+    var_decl: &VarDecl,
+    sym_table: Rc<RefCell<SymTable>>,
+) -> Result<(), SemanticError> {
     // check variable type none-nullability
     if var_decl.type_.is_none() {
         return Err(SemanticError {
@@ -292,7 +288,7 @@ fn check_var_decl(var_decl: &VarDecl, sym_table: &SymTable) -> Result<(), Semant
 
 /// Check if a type is compatible with an expression.
 ///
-/// @TODO: implement actual type compatibility logic
+/// @TODO: implement actual type compatibility logic.
 fn check_type_expr_compatibility(type_: &Type, expr: &Expr) -> Result<(), SemanticError> {
     /*
     return Err(SemanticError {
@@ -332,6 +328,296 @@ fn check_func_decl(func_decl: &FuncDecl) -> Result<(), SemanticError> {
 /// Check a function definition for semantic errors.
 ///
 /// @TODO: Implement function body checks.
-fn check_func_def(func: &FuncDef, sym_table: &SymTable) -> Result<(), SemanticError> {
+fn check_func_def(func: &FuncDef) -> Result<(), SemanticError> {
+    check_func_decl(&*func.decl.borrow())?;
+
+    // check function body statements for semantic errors
+    func.stmts.iter().try_for_each(|stmt| {
+        match &stmt.kind {
+            StatementKind::VarDecl(var_decl) => check_var_decl(var_decl, func.sym_table.clone())?,
+            StatementKind::FuncDef(func_def) => check_func_def(func_def)?,
+            StatementKind::Assignment(assignment) => {}
+            StatementKind::UntilLoop(cond_loop) => {}
+            StatementKind::WhileLoop(cond_loop) => {}
+            StatementKind::ForLoop(for_loop) => {}
+            StatementKind::IfElse(if_else) => {}
+            StatementKind::FuncCall(func_call) => {}
+            StatementKind::Return(items) => {}
+            StatementKind::Increment(lvalue) => {}
+            StatementKind::Decrement(lvalue) => {}
+            StatementKind::Break => Err(SemanticError {
+                kind: SemanticErrorKind::InvalidStmt,
+                msg: "Semantic error: break statement outside of a loop".into(),
+                span: stmt.span,
+            })?,
+            StatementKind::Skip => Err(SemanticError {
+                kind: SemanticErrorKind::InvalidStmt,
+                msg: "Semantic error: skip statement outside of a loop".into(),
+                span: stmt.span,
+            })?,
+        }
+
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
+fn fill_n_link_func_symbol_tables(func_def: &mut FuncDef) -> Result<(), SemanticError> {
+    for stmt in func_def.stmts.iter_mut() {
+        match &mut stmt.kind {
+            StatementKind::FuncDef(inner_func_def) => {
+                if let Some(_) = func_def.sym_table.borrow_mut().insert(
+                    QualName::from_single(inner_func_def.decl.borrow().name.to_string()),
+                    SymType::Func,
+                ) {
+                    return Err(SemanticError {
+                        kind: SemanticErrorKind::Redefinition,
+                        msg: format!(
+                            "Semantic error: function '{}' redefined",
+                            inner_func_def.decl.borrow().name.to_string()
+                        )
+                        .into(),
+                        span: inner_func_def.decl.borrow().span,
+                    });
+                }
+
+                inner_func_def
+                    .sym_table
+                    .borrow_mut()
+                    .set_parent(func_def.sym_table.clone());
+
+                fill_n_link_func_symbol_tables(inner_func_def)?;
+            }
+            StatementKind::VarDecl(inner_var_decl) => {
+                if let Some(_) = func_def.sym_table.borrow_mut().insert(
+                    QualName::from_single(inner_var_decl.name.to_string()),
+                    SymType::Var,
+                ) {
+                    return Err(SemanticError {
+                        kind: SemanticErrorKind::Redefinition,
+                        msg: format!(
+                            "Semantic error: variable '{}' redefined",
+                            inner_var_decl.name.to_string()
+                        )
+                        .into(),
+                        span: (inner_var_decl.loc, inner_var_decl.loc),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+fn fill_n_link_symbol_tables(program: &mut Program) -> Result<(), SemanticError> {
+    for constr in program.constrs.iter_mut() {
+        match &mut constr.kind {
+            ConstructKind::StructDef(struct_def) => {
+                if let Some(_) = program.sym_table.borrow_mut().insert(
+                    QualName::from_single(struct_def.name.to_string()),
+                    SymType::Struct,
+                ) {
+                    return Err(SemanticError {
+                        kind: SemanticErrorKind::Redefinition,
+                        msg: format!(
+                            "Semantic error: struct '{}' redefined",
+                            struct_def.name.to_string()
+                        )
+                        .into(),
+                        span: (constr.loc, constr.loc),
+                    });
+                }
+                struct_def
+                    .sym_table
+                    .borrow_mut()
+                    .set_parent(program.sym_table.clone());
+
+                for member in struct_def.members.iter_mut() {
+                    match &mut member.kind {
+                        StructMemberKind::VarDecl(var_decl) => {
+                            if let Some(_) = struct_def.sym_table.borrow_mut().insert(
+                                QualName::from_single(var_decl.name.to_string()),
+                                SymType::Var,
+                            ) {
+                                return Err(SemanticError {
+                                    kind: SemanticErrorKind::Redefinition,
+                                    msg: format!(
+                                        "Semantic error: variable '{}' redefined",
+                                        var_decl.name.to_string()
+                                    )
+                                    .into(),
+                                    span: (constr.loc, constr.loc),
+                                });
+                            }
+                        }
+                        StructMemberKind::FuncDef(func_def) => {
+                            if let Some(_) = struct_def.sym_table.borrow_mut().insert(
+                                QualName::from_single(func_def.decl.borrow().name.to_string()),
+                                SymType::Func,
+                            ) {
+                                return Err(SemanticError {
+                                    kind: SemanticErrorKind::Redefinition,
+                                    msg: format!(
+                                        "Semantic error: function '{}' redefined",
+                                        func_def.decl.borrow().name.to_string()
+                                    )
+                                    .into(),
+                                    span: (constr.loc, constr.loc),
+                                });
+                            }
+                            func_def
+                                .sym_table
+                                .borrow_mut()
+                                .set_parent(struct_def.sym_table.clone());
+                            fill_n_link_func_symbol_tables(func_def)?;
+                        }
+                        StructMemberKind::ProtMember(prot_member) => {
+                            if let Some(_) = struct_def.sym_table.borrow_mut().insert(
+                                QualName::from_single(prot_member.decl.borrow().name.to_string()),
+                                SymType::Func,
+                            ) {
+                                return Err(SemanticError {
+                                    kind: SemanticErrorKind::Redefinition,
+                                    msg: format!(
+                                        "Semantic error: protocol member '{}' redefined",
+                                        prot_member.decl.borrow().name.to_string()
+                                    )
+                                    .into(),
+                                    span: (constr.loc, constr.loc),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            ConstructKind::ProtDef(prot_def) => {
+                prot_def
+                    .borrow()
+                    .sym_table
+                    .borrow_mut()
+                    .set_parent(program.sym_table.clone());
+
+                for member in prot_def.borrow().members.iter() {
+                    if let Some(_) = prot_def.borrow().sym_table.borrow_mut().insert(
+                        QualName::from_single(member.name().to_string()),
+                        SymType::Func,
+                    ) {
+                        return Err(SemanticError {
+                            kind: SemanticErrorKind::Redefinition,
+                            msg: format!("Semantic error: function '{}' redefined", member.name())
+                                .into(),
+                            span: (constr.loc, constr.loc),
+                        });
+                    }
+
+                    if let ProtMember::Default(func_def) = member {
+                        func_def
+                            .borrow()
+                            .sym_table
+                            .borrow_mut()
+                            .set_parent(prot_def.borrow().sym_table.clone());
+
+                        fill_n_link_func_symbol_tables(&mut *func_def.borrow_mut())?;
+                    }
+                }
+            }
+            ConstructKind::FuncDef(func_def) => {
+                if let Some(_) = program.sym_table.borrow_mut().insert(
+                    QualName::from_single(func_def.decl.borrow().name.to_string()),
+                    SymType::Func,
+                ) {
+                    return Err(SemanticError {
+                        kind: SemanticErrorKind::Redefinition,
+                        msg: format!(
+                            "Semantic error: function '{}' redefined",
+                            func_def.decl.borrow().name
+                        )
+                        .into(),
+                        span: func_def.decl.borrow().span,
+                    });
+                }
+                func_def
+                    .sym_table
+                    .borrow_mut()
+                    .set_parent(program.sym_table.clone());
+                fill_n_link_func_symbol_tables(func_def)?;
+            }
+            ConstructKind::EnumDef(enum_def) => {
+                if let Some(_) = program.sym_table.borrow_mut().insert(
+                    QualName::from_single(enum_def.name.to_string()),
+                    SymType::Enum,
+                ) {
+                    return Err(SemanticError {
+                        kind: SemanticErrorKind::Redefinition,
+                        msg: format!("Semantic error: enum '{}' redefined", enum_def.name).into(),
+                        span: (constr.loc, constr.loc),
+                    });
+                }
+            }
+            ConstructKind::VarDecl(var_decl) => {
+                if let Some(_) = program.sym_table.borrow_mut().insert(
+                    QualName::from_single(var_decl.name.to_string()),
+                    SymType::Var,
+                ) {
+                    return Err(SemanticError {
+                        kind: SemanticErrorKind::Redefinition,
+                        msg: format!("Semantic error: variable '{}' redefined", var_decl.name)
+                            .into(),
+                        span: (var_decl.loc, var_decl.loc),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn prepare_program(program: &mut Program) -> Result<(), SemanticError> {
+    // 1st pass: validate protocol graphs before any checks
+    let prot_defs_iter = program.constrs.iter().filter_map(|constr| {
+        if let ConstructKind::ProtDef(prot_def) = &constr.kind {
+            Some((prot_def.clone(), constr.loc))
+        } else {
+            None
+        }
+    });
+
+    for (prot_def, loc) in prot_defs_iter.clone() {
+        if let Some(_) = program.sym_table.borrow_mut().insert(
+            prot_def.borrow().qualname(),
+            SymType::Prot(prot_def.clone()),
+        ) {
+            return Err(SemanticError {
+                kind: SemanticErrorKind::Redefinition,
+                msg: format!(
+                    "Semantic error: protocol '{}' redefined",
+                    prot_def.borrow().qualname()
+                )
+                .into(),
+                span: (loc, loc),
+            });
+        }
+    }
+
+    for (prot_def, loc) in prot_defs_iter {
+        let mut visited: HashSet<QualName> = HashSet::new();
+        let mut visiting: HashSet<QualName> = HashSet::new();
+
+        check_protocol_imposition_cycle(
+            &prot_def.borrow().qualname(),
+            program.sym_table.clone(),
+            loc,
+            &mut visiting,
+            &mut visited,
+        )?;
+    }
+
+    // 2nd pass: fill and link symbol tables for all constructs
+    fill_n_link_symbol_tables(program)?;
+
     Ok(())
 }

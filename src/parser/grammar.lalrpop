@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use crate::token::Token;
 use crate::ast::*;
 use crate::utils::{Loc, Span};
@@ -117,7 +119,7 @@ Constructs: Vec<Construct> = {
 Construct: Construct = {
     <loc:@L> <x:EnumDef> => Construct::new(ConstructKind::EnumDef(x), loc),
     <loc:@L> <x:StructDef> => Construct::new(ConstructKind::StructDef(x), loc),
-    <loc:@L> <x:ProtDef> => Construct::new(ConstructKind::ProtDef(x.into()), loc),
+    <loc:@L> <x:ProtDef> => Construct::new(ConstructKind::ProtDef(RefCell::new(x).into()), loc),
     <loc:@L> <x:FuncDef> => Construct::new(ConstructKind::FuncDef(x), loc),
     <loc:@L> <x:VarDecl> => Construct::new(ConstructKind::VarDecl(x), loc),
 };
@@ -157,9 +159,9 @@ ProtBody: Vec<ProtMember> = {
     <m:(<FuncDecl> <("Newline" <FuncBlock>)?> "Newline"+)*> => {
         m.into_iter().map(|item| {
             if let Some(body) = item.1 {
-                ProtMember::Default(FuncDef::new(item.0, body))
+                ProtMember::Default(RefCell::new(FuncDef::new(item.0, body)).into())
             } else {
-                ProtMember::Imposition(item.0)
+                ProtMember::Imposition(RefCell::new(item.0).into())
             }
         }).collect()
     }

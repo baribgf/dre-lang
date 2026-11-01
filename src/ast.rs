@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use std::fmt::Display;
 use std::rc::Rc;
+use std::{cell::RefCell, fmt::Display};
 
 use crate::{
     symtbl::{SymTable, SymType},
@@ -57,7 +57,7 @@ impl PartialEq for Type {
 pub struct VarDecl {
     pub is_public: bool,
     pub is_const: bool,
-    pub name: String,
+    pub name: Rc<String>,
     pub type_: Type,
     pub value: Option<Expr>,
     pub loc: Loc,
@@ -75,7 +75,7 @@ impl VarDecl {
         Self {
             is_public,
             is_const,
-            name,
+            name: name.into(),
             type_,
             value,
             loc,
@@ -87,7 +87,7 @@ impl VarDecl {
 pub enum ConstructKind {
     EnumDef(EnumDef),
     StructDef(StructDef),
-    ProtDef(Rc<ProtDef>),
+    ProtDef(Rc<RefCell<ProtDef>>),
     FuncDef(FuncDef),
     VarDecl(VarDecl),
 }
@@ -103,13 +103,13 @@ impl Construct {
         Self { kind, loc }
     }
 
-    pub fn name(&self) -> &String {
+    pub fn name(&self) -> Rc<String> {
         match &self.kind {
-            ConstructKind::EnumDef(def) => &def.name,
-            ConstructKind::StructDef(def) => &def.name,
-            ConstructKind::ProtDef(def) => &def.name,
-            ConstructKind::FuncDef(def) => &def.decl.name,
-            ConstructKind::VarDecl(decl) => &decl.name,
+            ConstructKind::EnumDef(def) => def.name.clone(),
+            ConstructKind::StructDef(def) => def.name.clone(),
+            ConstructKind::ProtDef(def) => def.borrow().name.clone(),
+            ConstructKind::FuncDef(def) => def.decl.borrow().name.clone(),
+            ConstructKind::VarDecl(decl) => decl.name.clone(),
         }
     }
 
@@ -139,7 +139,7 @@ impl EnumElem {
 #[derive(Debug)]
 pub struct EnumDef {
     pub is_public: bool,
-    pub name: String,
+    pub name: Rc<String>,
     pub elements: Vec<EnumElem>,
 }
 
@@ -147,7 +147,7 @@ impl EnumDef {
     pub fn new(is_public: bool, name: String, elements: Vec<EnumElem>) -> Self {
         Self {
             is_public,
-            name,
+            name: name.into(),
             elements,
         }
     }
@@ -157,6 +157,7 @@ impl EnumDef {
 pub enum StructMemberKind {
     VarDecl(VarDecl),
     FuncDef(FuncDef),
+    ProtMember(Rc<FuncDef>),
 }
 
 #[derive(Debug)]
@@ -170,10 +171,11 @@ impl StructMember {
         Self { kind, span }
     }
 
-    pub fn name(&self) -> &String {
+    pub fn name(&self) -> Rc<String> {
         match &self.kind {
-            StructMemberKind::VarDecl(decl) => &decl.name,
-            StructMemberKind::FuncDef(def) => &def.decl.name,
+            StructMemberKind::VarDecl(decl) => decl.name.clone(),
+            StructMemberKind::FuncDef(def) => def.decl.borrow().name.clone(),
+            StructMemberKind::ProtMember(def) => def.decl.borrow().name.clone(),
         }
     }
 }
@@ -181,10 +183,10 @@ impl StructMember {
 #[derive(Debug)]
 pub struct StructDef {
     pub is_public: bool,
-    pub name: String,
-    pub impos: Vec<QualName>,
+    pub name: Rc<String>,
+    pub impos: Rc<Vec<QualName>>,
     pub members: Vec<StructMember>,
-    pub sym_table: SymTable,
+    pub sym_table: Rc<RefCell<SymTable>>,
 }
 
 impl StructDef {
@@ -196,10 +198,10 @@ impl StructDef {
     ) -> Self {
         Self {
             is_public,
-            name,
-            impos,
+            name: name.into(),
+            impos: impos.into(),
             members,
-            sym_table: SymTable::new(),
+            sym_table: RefCell::new(SymTable::new()).into(),
         }
     }
 }
@@ -219,7 +221,7 @@ impl FuncParam {
 #[derive(Debug)]
 pub struct FuncDecl {
     pub is_public: bool,
-    pub name: String,
+    pub name: Rc<String>,
     pub params: Vec<FuncParam>,
     pub ret_type: Type,
     pub span: Span,
@@ -235,7 +237,7 @@ impl FuncDecl {
     ) -> Self {
         Self {
             is_public,
-            name,
+            name: name.into(),
             params,
             ret_type,
             span,
@@ -245,39 +247,39 @@ impl FuncDecl {
 
 #[derive(Debug)]
 pub struct FuncDef {
-    pub decl: FuncDecl,
+    pub decl: Rc<RefCell<FuncDecl>>,
     pub stmts: Vec<Statement>,
-    pub sym_table: SymTable,
+    pub sym_table: Rc<RefCell<SymTable>>,
 }
 
 impl FuncDef {
     pub fn new(decl: FuncDecl, stmts: Vec<Statement>) -> Self {
         Self {
-            decl,
+            decl: RefCell::new(decl).into(),
             stmts,
-            sym_table: SymTable::new(),
+            sym_table: RefCell::new(SymTable::new()).into(),
         }
     }
 }
 
 #[derive(Debug)]
 pub enum ProtMember {
-    Imposition(FuncDecl),
-    Default(FuncDef),
+    Imposition(Rc<RefCell<FuncDecl>>),
+    Default(Rc<RefCell<FuncDef>>),
 }
 
 impl ProtMember {
-    pub fn name(&self) -> &String {
+    pub fn name(&self) -> Rc<String> {
         match self {
-            ProtMember::Imposition(imp) => &imp.name,
-            ProtMember::Default(def) => &def.decl.name,
+            ProtMember::Imposition(imp) => imp.borrow().name.clone(),
+            ProtMember::Default(def) => def.borrow().decl.borrow().name.clone(),
         }
     }
 
-    pub fn decl(&self) -> &FuncDecl {
+    pub fn decl(&self) -> Rc<RefCell<FuncDecl>> {
         match self {
-            ProtMember::Imposition(imp) => imp,
-            ProtMember::Default(def) => &def.decl,
+            ProtMember::Imposition(imp) => imp.clone(),
+            ProtMember::Default(def) => def.borrow().decl.clone(),
         }
     }
 }
@@ -285,10 +287,10 @@ impl ProtMember {
 #[derive(Debug)]
 pub struct ProtDef {
     pub is_public: bool,
-    pub name: String,
-    pub impos: Vec<QualName>,
+    pub name: Rc<String>,
+    pub impos: Rc<Vec<QualName>>,
     pub members: Vec<ProtMember>,
-    pub sym_table: SymTable,
+    pub sym_table: Rc<RefCell<SymTable>>,
 }
 
 impl ProtDef {
@@ -300,17 +302,17 @@ impl ProtDef {
     ) -> Self {
         Self {
             is_public,
-            name,
-            impos,
+            name: name.into(),
+            impos: impos.into(),
             members,
-            sym_table: SymTable::new(),
+            sym_table: RefCell::new(SymTable::new()).into(),
         }
     }
 
     pub fn qualname(&self) -> QualName {
         // @TODO: expand the name to a fully qualified name based
         // on the current module path
-        QualName::from_single(self.name.clone())
+        QualName::from_single(self.name.clone().to_string())
     }
 }
 
@@ -591,7 +593,7 @@ pub type Header = Vec<UseStmt>;
 pub struct Program {
     pub header: Header,
     pub constrs: Vec<Construct>,
-    pub sym_table: SymTable,
+    pub sym_table: Rc<RefCell<SymTable>>,
 }
 
 impl Program {
@@ -599,7 +601,7 @@ impl Program {
         Self {
             header,
             constrs,
-            sym_table: SymTable::new_with_builtins(),
+            sym_table: RefCell::new(SymTable::new_with_builtins()).into(),
         }
     }
 }

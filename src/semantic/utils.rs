@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, rc::Rc};
 
 use crate::{
     ast::{FuncDecl, QualName},
@@ -24,17 +24,17 @@ pub fn compare_func_decls(fd1: &FuncDecl, fd2: &FuncDecl) -> bool {
 /// * `constr_loc` - The location of the construct being checked, used
 /// for error reporting if duplicates are found.
 /// # Returns
-/// * `Ok(HashSet<&QualName>)` - A set of unique `QualName`s if
+/// * `Ok(HashSet<QualName>)` - A set of unique `QualName`s if
 /// no duplicates are found.
 /// * `Err(SemanticError)` - An error indicating that a duplicate `QualName`
 /// was found, including the location of the construct.
 pub fn collect_unique_impos(
-    quals: &Vec<QualName>,
+    quals: Rc<Vec<QualName>>,
     constr_loc: Loc,
-) -> Result<HashSet<&QualName>, SemanticError> {
+) -> Result<HashSet<QualName>, SemanticError> {
     let mut impos = HashSet::new();
     for imp in quals.iter() {
-        if !impos.insert(imp) {
+        if !impos.insert(imp.clone()) {
             return Err(SemanticError {
                 kind: SemanticErrorKind::ProtConformance,
                 msg: "Semantic error: protocol conformance name used".into(),
