@@ -18,7 +18,7 @@ use memmap2::Mmap;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::report::{error, fatal};
-use crate::semantic::check_program;
+use crate::semantic::{check_program, prepare_program};
 use crate::utils::get_nth_line;
 
 /// The `Dre` language compiler
@@ -57,12 +57,24 @@ fn main() {
                 } */
                 let parser = Parser::new();
                 match parser.parse(lexer) {
-                    Ok(ast) => {
+                    Ok(mut ast) => {
                         eprintln!("Parsing successful!");
                         // println!("{:#?}", ast);
-
-                        match check_program(&ast) {
-                            Ok(_) => (),
+                        match prepare_program(&mut ast) {
+                            Ok(_) => {
+                                eprintln!("Semantic pre-analysis successful!");
+                                match check_program(&ast) {
+                                    Ok(_) => (),
+                                    Err(err) => error(
+                                        &err.msg,
+                                        &get_nth_line(source, err.span.0.0),
+                                        source_path,
+                                        err.span.0,
+                                        err.span.1,
+                                    ),
+                                }
+                                eprintln!("Semantic analysis successful!");
+                            }
                             Err(err) => error(
                                 &err.msg,
                                 &get_nth_line(source, err.span.0.0),
@@ -70,8 +82,7 @@ fn main() {
                                 err.span.0,
                                 err.span.1,
                             ),
-                        }
-                        eprintln!("Semantic analysis successful!");
+                        };
                     }
                     Err(err) => match err {
                         ParseError::InvalidToken { location } => {

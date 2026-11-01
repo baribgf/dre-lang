@@ -17,6 +17,7 @@ pub enum SemanticErrorKind {
     ProtConformance,
     TypeMismatch,
     UnknownType,
+    UnknownProtocol,
     InvalidType,
     FuncParamNameConflict,
     InvalidStmt,
@@ -107,7 +108,7 @@ pub fn check_program(program: &Program) -> Result<(), SemanticError> {
                         );
                     } else {
                         return Err(SemanticError {
-                            kind: SemanticErrorKind::TypeMismatch,
+                            kind: SemanticErrorKind::UnknownProtocol,
                             msg: format!("Semantic error: no protocol '{}' found in scope", prot),
                             span: (constr.loc, constr.loc),
                         });
@@ -146,8 +147,8 @@ pub fn check_program(program: &Program) -> Result<(), SemanticError> {
     Ok(())
 }
 
-/// Check if a struct conforms to a protocol by
-/// ensuring that all imposed members are implemented.
+/// Check if a struct conforms to a protocol by ensuring
+/// that all imposed members are implemented.
 fn struct_conforms_to_protocol(struct_def: &StructDef, prot_def: Rc<RefCell<ProtDef>>) -> bool {
     let binding = prot_def.borrow();
     let imposition_members = binding
@@ -197,7 +198,7 @@ fn check_protocol_imposition_cycle(
             prot_def.clone()
         } else {
             return Err(SemanticError {
-                kind: SemanticErrorKind::TypeMismatch,
+                kind: SemanticErrorKind::UnknownProtocol,
                 msg: format!("Semantic error: no protocol '{}' found in scope", current).into(),
                 span: (constr_loc, constr_loc),
             });
@@ -363,6 +364,52 @@ fn check_func_def(func: &FuncDef) -> Result<(), SemanticError> {
     Ok(())
 }
 
+/// Link inherited members from imposed protocols to the struct definition.
+fn link_struct_def_inherited_members(
+    struct_def: &mut StructDef,
+    global_sym_table: Rc<RefCell<SymTable>>,
+    struct_loc: Loc,
+) -> Result<(), SemanticError> {
+    let mut queue: Vec<QualName> = collect_unique_impos(struct_def.impos.clone(), struct_loc)?
+        .into_iter()
+        .collect();
+    let mut visited: HashSet<QualName> = HashSet::new();
+
+    while let Some(imp) = queue.pop() {
+        if !visited.insert(imp.clone()) {
+            continue;
+        }
+
+        let prot_sym_type_raw = global_sym_table.borrow().get(&imp);
+        if let Some(prot_sym_type) = prot_sym_type_raw
+            && let SymType::Prot(ref prot_def) = *prot_sym_type.borrow()
+        {
+            for member in prot_def.borrow().members.iter() {
+                if let ProtMember::Default(func_def) = member {
+                    struct_def.members.push(StructMember::new(
+                        StructMemberKind::ProtMember(func_def.clone()),
+                        func_def.borrow().decl.borrow().span,
+                    ));
+                }
+            }
+
+            queue.extend(
+                collect_unique_impos(prot_def.borrow().impos.clone(), struct_loc)?.into_iter(),
+            );
+        } else {
+            return Err(SemanticError {
+                kind: SemanticErrorKind::UnknownProtocol,
+                msg: format!("Semantic error: no protocol '{}' found in scope", imp),
+                span: (struct_loc, struct_loc),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+/// Fill and link symbol tables for function definitions and
+/// their nested constructs.
 fn fill_n_link_func_symbol_tables(func_def: &mut FuncDef) -> Result<(), SemanticError> {
     for stmt in func_def.stmts.iter_mut() {
         match &mut stmt.kind {
@@ -412,10 +459,17 @@ fn fill_n_link_func_symbol_tables(func_def: &mut FuncDef) -> Result<(), Semantic
     Ok(())
 }
 
+/// Fill and link symbol tables for all constructs in the program.
 fn fill_n_link_symbol_tables(program: &mut Program) -> Result<(), SemanticError> {
     for constr in program.constrs.iter_mut() {
         match &mut constr.kind {
             ConstructKind::StructDef(struct_def) => {
+                link_struct_def_inherited_members(
+                    struct_def,
+                    program.sym_table.clone(),
+                    constr.loc,
+                )?;
+
                 if let Some(_) = program.sym_table.borrow_mut().insert(
                     QualName::from_single(struct_def.name.to_string()),
                     SymType::Struct,
@@ -476,14 +530,16 @@ fn fill_n_link_symbol_tables(program: &mut Program) -> Result<(), SemanticError>
                         }
                         StructMemberKind::ProtMember(prot_member) => {
                             if let Some(_) = struct_def.sym_table.borrow_mut().insert(
-                                QualName::from_single(prot_member.decl.borrow().name.to_string()),
+                                QualName::from_single(
+                                    prot_member.borrow().decl.borrow().name.to_string(),
+                                ),
                                 SymType::Func,
                             ) {
                                 return Err(SemanticError {
                                     kind: SemanticErrorKind::Redefinition,
                                     msg: format!(
                                         "Semantic error: protocol member '{}' redefined",
-                                        prot_member.decl.borrow().name.to_string()
+                                        prot_member.borrow().decl.borrow().name.to_string()
                                     )
                                     .into(),
                                     span: (constr.loc, constr.loc),
@@ -576,6 +632,10 @@ fn fill_n_link_symbol_tables(program: &mut Program) -> Result<(), SemanticError>
     Ok(())
 }
 
+/// Prepare the program for semantic analysis
+/// by performing two passes:
+/// 1. Validate protocol graphs for cycles and redefinitions.
+/// 2. Fill and link symbol tables for all constructs in the program.
 pub fn prepare_program(program: &mut Program) -> Result<(), SemanticError> {
     // 1st pass: validate protocol graphs before any checks
     let prot_defs_iter = program.constrs.iter().filter_map(|constr| {
