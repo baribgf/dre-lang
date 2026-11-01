@@ -157,7 +157,7 @@ impl EnumDef {
 pub enum StructMemberKind {
     VarDecl(VarDecl),
     FuncDef(FuncDef),
-    ProtMember(Rc<FuncDef>),
+    ProtMember(Rc<RefCell<FuncDef>>),
 }
 
 #[derive(Debug)]
@@ -175,7 +175,7 @@ impl StructMember {
         match &self.kind {
             StructMemberKind::VarDecl(decl) => decl.name.clone(),
             StructMemberKind::FuncDef(def) => def.decl.borrow().name.clone(),
-            StructMemberKind::ProtMember(def) => def.decl.borrow().name.clone(),
+            StructMemberKind::ProtMember(def) => def.borrow().decl.borrow().name.clone(),
         }
     }
 }
